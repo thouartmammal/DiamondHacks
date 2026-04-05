@@ -30,4 +30,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   onSpeakingState: (cb) => ipcRenderer.on("speaking-state", (_, val) => cb(val)),
   endSession: () => ipcRenderer.send("end-session"),
+  openExternalUrl: (url) => ipcRenderer.invoke("open-external-url", url),
 });

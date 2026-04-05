@@ -1,38 +1,8 @@
-﻿import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-import { listVisits, normalizeHostFromUrl } from "./activityStore.js";
-import { getDailyInconsistencyDetailRollup, getDailyWhoPressRollup } from "./memoryStore.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "data");
-
-function parseJsonUtf8(raw) {
-  return JSON.parse(String(raw).replace(/^\uFEFF/, ""));
-}
-
-/** User overrides (self-report, prefs). Writable copy under BOOMER_USER_DATA in Electron. */
-function userSettingsPath() {
-  const root = process.env.BOOMER_USER_DATA;
-  if (root) return path.join(root, "physical-activity-user.json");
-  return path.join(DATA_DIR, "physical-activity-user.json");
-}
-
-async function loadUserSettings() {
-  try {
-    const raw = await readFile(userSettingsPath(), "utf8");
-    const j = parseJsonUtf8(raw);
-    return typeof j === "object" && j ? j : {};
-  } catch {
-    return {};
-  }
-}
-
-async function saveUserSettings(data) {
-  const p = userSettingsPath();
-  await mkdir(path.dirname(p), { recursive: true });
-  await writeFile(p, JSON.stringify(data, null, 2), "utf8");
-}
+﻿import { listVisits, normalizeHostFromUrl } from "./activityStore.js";
+import {
+  getDailyInconsistencyDetailRollup,
+  getDailyWhoPressRollup,
+} from "./memoryStore.js";
 
 function lastNDates(n) {
   const day = 24 * 60 * 60 * 1000;
@@ -279,16 +249,8 @@ function frequencyDriverFromInc(inc, reasonSamples, whoCount = 0) {
   if (!reasonSamples.length) return truncateDriver(head);
   return truncateDriver(`${head} Example: ${truncateDriver(reasonSamples[0], 160)}`);
 }
-const DEFAULT_SELF_AGE = 55;
 
 export async function getPhysicalActivityDashboard() {
-  const settings = await loadUserSettings();
-  const perceivedSelfAgeRaw = settings.perceivedSelfAge;
-  const perceivedSelfAge =
-    typeof perceivedSelfAgeRaw === "number" && perceivedSelfAgeRaw > 12 && perceivedSelfAgeRaw < 120
-      ? Math.round(perceivedSelfAgeRaw)
-      : DEFAULT_SELF_AGE;
-
   const dates = lastNDates(21);
   const visits = await listVisits({ limit: 2500 });
   const cutoff = dates[0];
@@ -385,7 +347,6 @@ export async function getPhysicalActivityDashboard() {
   const visitDaysWithData = dates.filter((d) => (byDay.get(d) || []).length > 0).length;
 
   return {
-    perceivedSelfAge,
     averageMediaMood,
     averageMediaMoodLabel,
     mediaAgeBand,
@@ -400,25 +361,8 @@ export async function getPhysicalActivityDashboard() {
       visitsInWindow: recentVisits.length,
       visitDaysWithData,
       inconsistencyEventsInWindow: incRollup.reduce((a, r) => a + r.count, 0),
-      settingsPath: "physical-activity-user.json",
       blendNote:
         "Mood blends page-title heuristics with same-day narrative slips (episode mismatches). Estimates only - not clinical.",
     },
   };
-}
-
-/**
- * Persist user-editable fields (e.g. self-reported felt age). Does not store derived series.
- * @param {Record<string, unknown>} partial
- */
-export async function updatePhysicalActivitySnapshot(partial) {
-  const cur = await loadUserSettings();
-  const next = { ...cur };
-  if (partial.perceivedSelfAge != null) {
-    const n = Number(partial.perceivedSelfAge);
-    if (!Number.isNaN(n) && n >= 18 && n <= 110) next.perceivedSelfAge = Math.round(n);
-  }
-  next.updatedAt = new Date().toISOString();
-  await saveUserSettings(next);
-  return getPhysicalActivityDashboard();
 }

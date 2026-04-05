@@ -221,6 +221,13 @@ ipcMain.on('end-session', () => {
   if (mainWin) mainWin.webContents.send('end-session')
 })
 
+/** Reliable open from renderer (timers are not user gestures — avoids silent window.open failures). */
+ipcMain.handle('open-external-url', (_event, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url.trim())) return false
+  shell.openExternal(url.trim())
+  return true
+})
+
 app.whenReady().then(async () => {
   startBackend()
   if (!isDev) {

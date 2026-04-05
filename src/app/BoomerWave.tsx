@@ -8,6 +8,16 @@ interface Props {
 const BARS = 40;
 const COLORS = ["#3b82f6", "#60a5fa", "#7dd3fc", "#93c5fd", "#2563eb"];
 
+function fillBar(ctx: CanvasRenderingContext2D, x: number, y: number, bw: number, barH: number, radius: number) {
+  if (typeof ctx.roundRect === "function") {
+    ctx.beginPath();
+    ctx.roundRect(x, y, bw, barH, radius);
+    ctx.fill();
+    return;
+  }
+  ctx.fillRect(x, y, bw, barH);
+}
+
 export function BoomerWave({ isListening, isSpeaking }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
@@ -18,7 +28,7 @@ export function BoomerWave({ isListening, isSpeaking }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;;
+    if (!ctx) return;
     const active = isListening || isSpeaking;
 
     function setNewTargets() {
@@ -54,11 +64,9 @@ export function BoomerWave({ isListening, isSpeaking }: Props) {
         const color = COLORS[i % COLORS.length];
         const radius = bw / 2;
 
-        ctx.beginPath();
-        ctx.roundRect(x, y, bw, barH, radius);
         ctx.fillStyle = color;
         ctx.globalAlpha = active ? 0.85 : 0.3;
-        ctx.fill();
+        fillBar(ctx, x, y, bw, barH, radius);
       });
 
       animRef.current = requestAnimationFrame(draw);

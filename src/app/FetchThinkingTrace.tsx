@@ -149,6 +149,16 @@ function TreeConnectorsSVG({
   );
 }
 
+type TraceResearchNews =
+  | {
+      ok: true;
+      items: unknown[];
+      broadFallback?: boolean;
+    }
+  | { ok: false; disabled?: boolean; message?: string }
+  | null
+  | undefined;
+
 export function FetchThinkingTrace({
   loading,
   clinical,
@@ -156,6 +166,7 @@ export function FetchThinkingTrace({
   agentSucceeded,
   parseFallback,
   agentChain,
+  researchNews,
 }: {
   loading: boolean;
   clinical: boolean;
@@ -164,6 +175,8 @@ export function FetchThinkingTrace({
   parseFallback?: boolean;
   /** e.g. `drift-only` from hosted Drift when PERCEPTION_AGENT_ADDRESS is unset */
   agentChain?: string | null;
+  /** NewsData headlines fetched on the voice server in parallel with the holistic snapshot */
+  researchNews?: TraceResearchNews;
 }) {
   const [livePhase, setLivePhase] = useState(0);
 
@@ -300,6 +313,33 @@ export function FetchThinkingTrace({
             <p className="text-[0.7rem] leading-snug text-slate-500">{MERGE_NODE.detail}</p>
           </NodeShell>
         </div>
+
+        {/* —— News index (voice server → NewsData.io, parallel to this trace) —— */}
+        {!loading &&
+        researchNews &&
+        researchNews.ok &&
+        Array.isArray(researchNews.items) &&
+        researchNews.items.length > 0 ? (
+          <div className="mx-auto mt-2 w-full max-w-md" role="treeitem" aria-level={2}>
+            <NodeShell status="done" clinical={clinical}>
+              <p className="text-xs font-semibold text-slate-100">Brain-health headline index</p>
+              <p className="text-[0.7rem] leading-snug text-slate-500">
+                {researchNews.broadFallback
+                  ? "NewsData returned general latest stories (your topic keywords had no matches in their index this run)."
+                  : `NewsData latest index: ${researchNews.items.length} article(s) on Alzheimer’s / brain-health style keywords — see list below. Not medical advice.`}
+              </p>
+            </NodeShell>
+          </div>
+        ) : !loading && researchNews && !researchNews.ok && !researchNews.disabled ? (
+          <div className="mx-auto mt-2 w-full max-w-md">
+            <NodeShell status="error" clinical={clinical}>
+              <p className="text-xs font-semibold text-slate-100">Brain-health headline index</p>
+              <p className="text-[0.7rem] leading-snug text-amber-200/85">
+                {researchNews.message ?? "Headlines request failed — check NEWSDATA_API_KEY on the voice server."}
+              </p>
+            </NodeShell>
+          </div>
+        ) : null}
 
         {/* —— Trunk: vertical spine + steps —— */}
         <div className="relative mx-auto mt-1 flex w-full max-w-md flex-col items-stretch pl-4 sm:pl-5">

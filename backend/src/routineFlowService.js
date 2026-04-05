@@ -10,6 +10,16 @@ const DATA_DIR = path.join(__dirname, "..", "data");
 const ROUTINE_WINDOW_MS = 21 * 24 * 60 * 60 * 1000;
 const MAX_STEPS = 5;
 
+/**
+ * Fixed daily routine (Gmail → YouTube → Messenger). Set to `[]` to mine steps from activity again.
+ * @type {{ title: string, url: string }[]}
+ */
+const HARDCODED_DAILY_ROUTINE = [
+  { title: "Gmail", url: "https://mail.google.com/" },
+  { title: "YouTube", url: "https://www.youtube.com/" },
+  { title: "Messenger", url: "https://www.messenger.com/" },
+];
+
 function activityDbPath() {
   if (process.env.BOOMER_ACTIVITY_DB) return process.env.BOOMER_ACTIVITY_DB;
   return path.join(DATA_DIR, "activity.db");
@@ -152,6 +162,29 @@ export function buildRoutineFlow(visits) {
  * @returns {Promise<{ source: string, patternSummary: string, steps: object[], maxSteps: number, agents_used: string[] }>}
  */
 export async function getRoutineFlow() {
+  if (HARDCODED_DAILY_ROUTINE.length > 0) {
+    const steps = HARDCODED_DAILY_ROUTINE.map((item, i) => {
+      const url = String(item.url || "").trim();
+      const host = normalizeHostFromUrl(url) || "site";
+      return {
+        order: i + 1,
+        host,
+        url,
+        title: item.title || host,
+        visitCountWindow: 0,
+        reason: "Configured fixed routine (routineFlowService.js).",
+      };
+    });
+    const titles = steps.map((s) => s.title).join(" → ");
+    return {
+      source: "hardcoded",
+      patternSummary: `Your daily routine: ${titles}.`,
+      steps,
+      maxSteps: MAX_STEPS,
+      agents_used: ["hardcoded-routine"],
+    };
+  }
+
   let source = "json";
   let visits = readVisitsFromSqlite();
   if (visits?.length) {

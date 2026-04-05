@@ -32,14 +32,13 @@ class Handler(BaseHTTPRequestHandler):
         phys = body.get("physicalSnapshot") or {}
         mood = float(phys.get("averageMediaMood") or 0)
         label = str(phys.get("averageMediaMoodLabel") or "neutral trend")
-        age = int(phys.get("perceivedSelfAge") or 55)
         slips = int(ctx.get("memorySlipsLast14Days") or 0)
         snippet = str(ctx.get("personalitySnippet") or "")[:200]
 
         negotiated = (
             "Dear colleague — stub agent: engagement and safeguards agents reached a single consensus for chart review "
             "(not for unsupervised patient use).\n\n"
-            f"In-app signals: media mood ~{mood:.2f} ({label}); self-reported felt age {age}. "
+            f"In-app signals: media mood ~{mood:.2f} ({label}). "
             f"Browsing-style snippet (heuristic): {snippet or '—'}.\n\n"
             "Safety: this platform cannot diagnose. Narrative-slip counts are operational only "
             f"({slips} in 14 days per payload). Correlate with history and exam.\n\n"

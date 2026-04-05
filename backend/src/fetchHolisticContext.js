@@ -3,7 +3,7 @@ import { readFile } from "fs/promises";
 import { fileURLToPath } from "url";
 import { listVisits, normalizeHostFromUrl, isSearchEngineHost } from "./activityStore.js";
 import { buildCognitiveSnapshotWithDrift } from "./cognitiveSnapshot.js";
-import { getMetrics, getStateSummary } from "./memoryStore.js";
+import { getMetrics, getStateSummary, listMedia } from "./memoryStore.js";
 import { getPhysicalActivityDashboard } from "./physicalActivityStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -139,6 +139,17 @@ export async function buildMemoryAgentContext() {
     );
   }
   lines.push(`Narrative seq: ${metrics.narrative?.narrativeSeq ?? "—"}; series: ${metrics.narrative?.seriesKey ?? "—"}.`);
+  const friendsLog = await listMedia({ seriesKey: "friends", limit: 20 }).catch(() => []);
+  if (friendsLog.length) {
+    const eps = [
+      ...new Set(
+        friendsLog.map((e) => e.episodeNumber).filter((n) => n != null && Number.isFinite(Number(n))),
+      ),
+    ].sort((a, b) => Number(a) - Number(b));
+    lines.push(
+      `Media: user has been watching Friends on YouTube — logged episodes: ${eps.join(", ")}. When they mention an episode by number, gently confirm and offer to open it.`,
+    );
+  }
   lines.push(metrics.disclaimer || "Operational counts only — not a clinical assessment.");
   return lines.join("\n");
 }
@@ -149,7 +160,7 @@ export async function buildPhysicalWellnessContext() {
   const lastMood = dash.moodSeries?.[dash.moodSeries.length - 1];
   const lastDeg = dash.memoryLossDegreeSeries?.[dash.memoryLossDegreeSeries.length - 1];
   const lines = [
-    `Perceived self age (user): ${dash.perceivedSelfAge}; media mood avg: ${dash.averageMediaMood} (${dash.averageMediaMoodLabel}).`,
+    `Media mood avg: ${dash.averageMediaMood} (${dash.averageMediaMoodLabel}).`,
     `Content age band: ${dash.mediaAgeBand} — ${dash.mediaAgeDescription}.`,
     `Latest mood point: ${lastMood?.date ?? "—"} mood=${lastMood?.mood ?? "—"}${lastMood?.moodDriver ? ` driver: ${lastMood.moodDriver}` : ""}.`,
     `Latest narrative-stress proxy: ${lastDeg?.date ?? "—"} value=${lastDeg?.value ?? "—"}${lastDeg?.memoryDriver ? ` driver: ${lastDeg.memoryDriver}` : ""}.`,
@@ -225,4 +236,56 @@ export function setHolisticCache(payload) {
 /** @returns {{ at: number, payload: object } | null} */
 export function peekHolisticCacheForReport() {
   return holisticCacheLastForReport;
+}
+
+/**
+ * Build text for Vapi `variableValues.boomer_holistic_context` (system prompt {{boomer_holistic_context}}).
+ * Uses cached /cognitive/agentverse payload only — no extra ASI calls.
+ * @param {object | null | undefined} payload Same shape as setHolisticCache (sections, supportIntensity, snapshot, agentverse).
+ * @param {number} maxChars
+ * @returns {string}
+ */
+export function formatHolisticPayloadForVapiVariable(payload, maxChars = 2400) {
+  if (!payload || typeof payload !== "object") return "";
+  const cap = Math.max(400, Math.min(16000, Number(maxChars) || 2400));
+  const parts = [];
+
+  const si = payload.supportIntensity;
+  if (si === "low" || si === "moderate" || si === "elevated") {
+    const label = si.charAt(0).toUpperCase() + si.slice(1);
+    parts.push(`Support intensity: ${label} (from app telemetry — adapt tone only; not diagnostic).`);
+  }
+
+  const sec = payload.sections;
+  const hasSections =
+    sec &&
+    typeof sec === "object" &&
+    (String(sec.memory || "").trim() ||
+      String(sec.browser || "").trim() ||
+      String(sec.drift || "").trim() ||
+      String(sec.note || "").trim());
+
+  if (hasSections) {
+    if (String(sec.memory || "").trim()) parts.push(`[Memory]\n${String(sec.memory).trim()}`);
+    if (String(sec.browser || "").trim()) parts.push(`[Browser]\n${String(sec.browser).trim()}`);
+    if (String(sec.drift || "").trim()) parts.push(`[Drift]\n${String(sec.drift).trim()}`);
+    if (String(sec.note || "").trim()) parts.push(`[Note]\n${String(sec.note).trim()}`);
+  } else {
+    const av = payload.agentverse;
+    const um =
+      av && typeof av === "object" && av.ok && av.data && typeof av.data.user_message === "string"
+        ? String(av.data.user_message).trim()
+        : "";
+    if (um) parts.push(um);
+  }
+
+  const phys = payload.snapshot?.physical_context;
+  if (typeof phys === "string" && phys.trim()) {
+    parts.push(`[Wellness / media mood]\n${phys.trim()}`);
+  }
+
+  let out = parts.filter(Boolean).join("\n\n");
+  if (!out.trim()) return "";
+  if (out.length > cap) out = `${out.slice(0, cap - 1)}…`;
+  return out;
 }

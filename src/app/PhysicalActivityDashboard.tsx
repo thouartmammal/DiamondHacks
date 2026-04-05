@@ -22,7 +22,6 @@ import { WellnessHumanSilhouette } from "./WellnessHumanSilhouette";
 import { useTranslation } from "../i18n/LanguageContext";
 
 export type PhysicalActivityPayload = {
-  perceivedSelfAge: number;
   averageMediaMood: number;
   averageMediaMoodLabel: string;
   mediaAgeBand: "kids" | "teen" | "adult" | "senior" | "mixed";

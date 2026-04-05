@@ -60,8 +60,6 @@ export function buildNegotiationChatLines(s) {
   const tasks = typeof s.browserTasksCompleted === "number" ? s.browserTasksCompleted : 0;
   const mood = typeof s.averageMediaMood === "number" ? s.averageMediaMood : 0;
   const moodLabel = typeof s.averageMediaMoodLabel === "string" ? s.averageMediaMoodLabel : "neutral trend";
-  const age = s.perceivedSelfAge != null ? Number(s.perceivedSelfAge) : null;
-  const ageStr = age != null && !Number.isNaN(age) ? String(Math.round(age)) : "—";
 
   const slip14 = Number(s.memorySlipsLast14Days) || 0;
   const slipTot = Number(s.memorySlipsTotalLogged) || 0;
@@ -90,7 +88,7 @@ export function buildNegotiationChatLines(s) {
     {
       id: "e1",
       role: "engagement",
-      text: `Engagement — From the logs: ~${h} h with the assistant visible, ${tasks} assisted browser task${tasks === 1 ? "" : "s"}, media mood ${mood.toFixed(2)} (${moodLabel}), self-reported felt age ${ageStr}. Recall-check difficulty (0–1) averaged ${degStr} over the last 14 days with a peak of ${maxDegStr}.`,
+      text: `Engagement — From the logs: ~${h} h with the assistant visible, ${tasks} assisted browser task${tasks === 1 ? "" : "s"}, media mood ${mood.toFixed(2)} (${moodLabel}). Recall-check difficulty (0–1) averaged ${degStr} over the last 14 days with a peak of ${maxDegStr}.`,
     },
     {
       id: "s1",
@@ -124,7 +122,6 @@ function buildNegotiationSnapshot(dash, phys, mem) {
     memorySlipsTotalLogged: Number(mem.totalInconsistenciesLogged) || 0,
     averageMediaMood: phys.averageMediaMood,
     averageMediaMoodLabel: phys.averageMediaMoodLabel,
-    perceivedSelfAge: phys.perceivedSelfAge,
     ...series14,
   };
 }
@@ -161,7 +158,6 @@ function summarizeContext(dash, phys, mem) {
     lastNarrativeEpisode: mem.narrative?.lastConfirmedEpisode ?? null,
     averageMediaMood: phys.averageMediaMood,
     averageMediaMoodLabel: phys.averageMediaMoodLabel,
-    perceivedSelfAge: phys.perceivedSelfAge,
     mediaAgeBand: phys.mediaAgeBand,
   };
 }
@@ -182,7 +178,7 @@ function localNegotiationFromMetrics(dash, phys, mem) {
       ? dash.personality.trim().slice(0, 280)
       : "Limited browsing-style signal yet (insufficient site diversity).";
 
-  const engagementView = `In-app engagement signals: approximately ${hours} hour${hours === 1 ? "" : "s"} with the assistant visible; ${tasks} assisted browser task${tasks === 1 ? "" : "s"} completed. Browsing-style summary (heuristic): ${personality} Media-inferred mood index ${mood.toFixed(2)} (${moodLabel}); app-reported felt age ${phys.perceivedSelfAge}.`;
+  const engagementView = `In-app engagement signals: approximately ${hours} hour${hours === 1 ? "" : "s"} with the assistant visible; ${tasks} assisted browser task${tasks === 1 ? "" : "s"} completed. Browsing-style summary (heuristic): ${personality} Media-inferred mood index ${mood.toFixed(2)} (${moodLabel}).`;
 
   const safeguardsView = `Safety constraints: this platform does not diagnose. Narrative-slip counts are operational logs only (${slips14} in 14 days, ${slipsTotal} all-time). High counts may reflect metadata noise, multitasking, or true inconsistency—clinical correlation is required. Screen-estimated mood is not a mental-health instrument.`;
 
@@ -198,7 +194,7 @@ function localNegotiationFromMetrics(dash, phys, mem) {
       ? "Media mood is somewhat negative on title heuristics—if relevant, explore mood and sleep in clinic."
       : null;
 
-  const keyNumbers = `Key numbers for the record: ${hours}h app time, mood ${mood.toFixed(2)}, felt age ${phys.perceivedSelfAge}, slips ${slips14} (14d) / ${slipsTotal} (total).`;
+  const keyNumbers = `Key numbers for the record: ${hours}h app time, mood ${mood.toFixed(2)}, slips ${slips14} (14d) / ${slipsTotal} (total).`;
 
   const negotiatedSummaryForProvider = [
     "Dear colleague — for chart review: two internal agents (engagement vs. safeguards) negotiated to the following single consensus. Do not use verbatim as unsupervised patient-facing medical advice.",
@@ -243,7 +239,6 @@ export async function analyzeRoutinesCaregiverNegotiation() {
 
   const context = summarizeContext(dash, phys, mem);
   const physicalSnapshot = {
-    perceivedSelfAge: phys.perceivedSelfAge,
     averageMediaMood: phys.averageMediaMood,
     averageMediaMoodLabel: phys.averageMediaMoodLabel,
     mediaAgeBand: phys.mediaAgeBand,

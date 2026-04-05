@@ -60,6 +60,19 @@ You should get JSON with `"ok": true` and an ASI:One-generated `user_message`.
 | `ASI1_MODEL` | Default `asi1` |
 | `ASI_USER_MESSAGE_MAX_CHARS` | Optional. Default **95000**. User prompt is truncated beyond this to avoid ASI errors on huge holistic payloads (memory + evidence brief + `BOOMER_RESEARCH_BRIEF`). |
 | `BOOMER_RESEARCH_BRIEF` | Optional. Long text / pasted abstract snippets appended to the user message after all lenses (hosted Agent secret). Boomer Node also injects `backend/data/perception-evidence-brief.txt` into `memory_context` on each holistic build. |
+| `SERPAPI_API_KEY` | Optional. [SerpApi](https://serpapi.com/manage-api-key) — **Google Search JSON API** ([docs](https://serpapi.com/search-api)). When set, **auto mode uses SerpApi first** for headlines (Google News tab by default). Counts against SerpApi plan credits. |
+| `SERPAPI_GOOGLE_NEWS` | Optional. Default **1** — use Google News (`tbm=nws`). Set **0** for general web organic results only. |
+| `SERPAPI_HL` / `SERPAPI_GL` | Optional. Google UI language / country (default **en** / **us**). |
+| `NEWSDATA_IO_API_KEY` | Optional. [NewsData.io](https://newsdata.io) key (explicit name — avoids confusing with NewsAPI). |
+| `NEWSDATA_API_KEY` | Optional. **Legacy / dual-use name:** often stores a [NewsAPI.org](https://newsapi.org/account) key when `NEWS_API_KEY` is unset (common mis-name). It is **only** sent to NewsData.io when `NEWS_HEADLINES_PROVIDER=newsdata`, or when **both** `NEWS_API_KEY` and `NEWSDATA_API_KEY` are set (first = NewsAPI, second = NewsData). If your **only** key is from NewsData.io and you keep it here, set `NEWS_HEADLINES_PROVIDER=newsdata` (or use `NEWSDATA_IO_API_KEY`). |
+| `NEWS_API_KEY` | Optional. [NewsAPI.org](https://newsapi.org/account). Free developer plan is **localhost/dev only** per their terms; paid for production. |
+| `NEWS_HEADLINES_PROVIDER` | Optional. **`serpapi`**, **`newsapi`**, or **`newsdata`**, or leave unset for **auto**: **SerpApi** → NewsAPI.org → NewsData (first key that resolves). |
+| `NEWS_API_POLL_SECONDS` | Optional. Default **86400** (~once/day). Use shorter intervals only if your news plan allows (min 120, max 86400). |
+| `NEWS_API_QUERY` | Optional. Default `dementia OR alzheimer OR cognitive health` (both providers). |
+| `NEWS_API_PAGE_SIZE` | Optional. Default **5** (max **10**; NewsData free plan allows size 1–10). |
+| `NEWS_HEADLINES_MAX_AGE_CHAT_SEC` | Optional. Default **300**. Before each ASI:One **Chat** turn, headlines are re-fetched if the in-memory cache is empty or older than this many seconds (helps hosted runtimes where chat may hit another worker). Set **0** to never refresh on chat (poll interval only). |
+| `NEWS_CHAT_ONDEMAND` | Optional. Default **1** (on). When headlines are enabled, chat messages that look like news or health questions trigger an on-demand search (SerpApi / NewsAPI / NewsData per provider order) using the user’s wording. Set **0** to save API credits. |
+| `NEWSDATA_Q_MAX_CHARS` | Optional. Default **100** (NewsData free-tier query length). |
 
 **Log shows `ASI1 chat.completions failed`:** Check the **next log line** for the API detail (401 = bad/missing `ASI1_API_KEY`, 400/413 = payload/model). On Agentverse set **Agent Secrets** `ASI1_API_KEY` (and optional `ASI1_BASE_URL` / `ASI1_MODEL` if your ASI tenant differs).
 

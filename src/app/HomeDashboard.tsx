@@ -217,13 +217,13 @@ export function HomeDashboard() {
   const load = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
     try {
-      const res = await fetch(apiUrl("dashboard"));
-      const text = await res.text();
-      if (!res.ok) {
+      const dashRes = await fetch(apiUrl("dashboard"));
+      const text = await dashRes.text();
+      if (!dashRes.ok) {
         const hint =
           text.includes("<!DOCTYPE") || text.includes("<html")
-            ? `Server returned ${res.status} (is the voice backend running on port 3001?)`
-            : text || res.statusText;
+            ? `Server returned ${dashRes.status} (is the voice backend running on port 3001?)`
+            : text || dashRes.statusText;
         throw new Error(hint);
       }
       setData(JSON.parse(text) as DashboardPayload);

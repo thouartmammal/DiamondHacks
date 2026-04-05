@@ -144,6 +144,8 @@ export async function addAssertion(input) {
   s.assertions.push(assertion);
 
   let reconciliation = null;
+  /** Set when this request logs an episode_mismatch (returned to client / caregivers). */
+  let episodeMismatchJustLogged = null;
 
   if (
     parsedEpisode != null &&
@@ -167,6 +169,7 @@ export async function addAssertion(input) {
       assertedEpisode: parsedEpisode,
     };
     s.inconsistencies.push(inc);
+    episodeMismatchJustLogged = inc;
 
     if (anchor) {
       const priorSeq = s.narrative.narrativeSeq;
@@ -191,15 +194,11 @@ export async function addAssertion(input) {
   }
 
   await persist();
+
   return {
     assertion,
     reconciliation,
-    inconsistency:
-      parsedEpisode != null &&
-      priorLast != null &&
-      parsedEpisode !== priorLast
-        ? s.inconsistencies[s.inconsistencies.length - 1]
-        : null,
+    inconsistency: episodeMismatchJustLogged,
   };
 }
 
@@ -208,6 +207,25 @@ export async function listMedia({ seriesKey, limit = 100 } = {}) {
   let rows = [...s.mediaEvents].sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
   if (seriesKey) rows = rows.filter((e) => e.seriesKey === seriesKey);
   return rows.slice(0, limit);
+}
+
+/**
+ * @param {string} seriesKey
+ * @param {number} episodeNumber
+ * @returns {Promise<string | null>} URL from the newest matching media log, or null
+ */
+export async function getLoggedMediaEpisodeUrl(seriesKey, episodeNumber) {
+  const key = String(seriesKey ?? "").trim();
+  const ep = Number(episodeNumber);
+  if (!key || !Number.isFinite(ep)) return null;
+  const s = await ensureLoaded();
+  const matches = s.mediaEvents.filter(
+    (e) => e.seriesKey === key && Number(e.episodeNumber) === ep,
+  );
+  if (!matches.length) return null;
+  matches.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
+  const url = String(matches[0].url || "").trim();
+  return url || null;
 }
 
 /** Group media by calendar day for "daily URL" view */
@@ -283,6 +301,16 @@ export async function getStateSummary() {
     reconciliationCount: s.reconciliations.length,
     inconsistencyCount: s.inconsistencies.length,
   };
+}
+
+/** Newest inconsistency by `detectedAt` (for hero / wellness cues). */
+export async function getMostRecentInconsistency() {
+  const s = await ensureLoaded();
+  if (!s.inconsistencies.length) return null;
+  const sorted = [...s.inconsistencies].sort(
+    (a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime(),
+  );
+  return sorted[0] ?? null;
 }
 
 /**

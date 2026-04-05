@@ -49,11 +49,30 @@ type HolisticSnapshot = {
   source?: string;
 };
 
+export type ResearchNewsItem = {
+  title: string;
+  source: string;
+  link: string;
+  pubDate: string;
+};
+
+export type ResearchNewsPayload =
+  | {
+      ok: true;
+      items: ResearchNewsItem[];
+      queryUsed: string;
+      fetchedAt: string;
+      broadFallback?: boolean;
+    }
+  | { ok: false; disabled?: boolean; message?: string };
+
 type CognitiveResponse = {
   drift?: DriftPayload | null;
   baseline?: unknown;
   snapshot?: HolisticSnapshot | null;
   agentverse?: AgentversePayload;
+  /** NewsData.io headlines for Alzheimer / brain-health (server fetches in parallel with holistic build). */
+  researchNews?: ResearchNewsPayload;
   cognitiveAgentConfigured?: boolean;
   sections?: InsightSections | null;
   insightUnparsed?: boolean | null;
@@ -130,6 +149,101 @@ function supportIntensityBadgeClass(level: "low" | "moderate" | "elevated", tone
     : "border-amber-400/35 bg-amber-950/30 text-amber-50";
 }
 
+function ResearchHeadlinesCard({
+  researchNews,
+  tone = "indigo",
+}: {
+  researchNews: ResearchNewsPayload;
+  tone?: "indigo" | "rose";
+}) {
+  if (!researchNews.ok) {
+    if (researchNews.disabled) return null;
+    return (
+      <div
+        className={cn(
+          "rounded-xl border px-3 py-2 text-sm",
+          tone === "rose"
+            ? "border-amber-400/35 bg-amber-950/25 text-amber-50"
+            : "border-amber-400/30 bg-amber-950/30 text-amber-50",
+        )}
+        role="status"
+      >
+        <span className="font-semibold">Brain-health headlines</span>
+        <span className="mt-1 block text-xs font-normal opacity-90">
+          {researchNews.message ?? "Headlines unavailable this run."}
+        </span>
+      </div>
+    );
+  }
+  const n = researchNews.items.length;
+  const when =
+    researchNews.fetchedAt &&
+    (() => {
+      try {
+        return new Date(researchNews.fetchedAt).toLocaleString(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+      } catch {
+        return researchNews.fetchedAt;
+      }
+    })();
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-3 py-2.5 text-sm",
+        tone === "rose"
+          ? "border-teal-400/30 bg-teal-950/25 text-teal-50"
+          : "border-teal-400/25 bg-teal-950/20 text-teal-50",
+      )}
+      role="region"
+      aria-label="Recent research and brain health headlines"
+    >
+      <p className="font-semibold text-teal-100">
+        Recent news (Alzheimer&apos;s / brain health index)
+        {researchNews.broadFallback ? (
+          <span className="ml-1 text-xs font-normal text-teal-200/80"> — broad feed (topic had no matches)</span>
+        ) : null}
+      </p>
+      <p className="mt-1 text-xs font-normal text-teal-100/85">
+        {n === 0
+          ? "No articles in this response."
+          : n === 1
+            ? "1 article matched your insight query in the NewsData latest index."
+            : `${n} articles matched your insight query in the NewsData latest index.`}{" "}
+        Not medical advice; links are third-party.
+      </p>
+      {researchNews.queryUsed ? (
+        <p className="mt-1 font-mono text-[0.65rem] text-teal-200/70">q: {researchNews.queryUsed}</p>
+      ) : null}
+      <ul className="mt-2 space-y-2 border-t border-teal-400/15 pt-2">
+        {researchNews.items.map((it, i) => (
+          <li key={`${it.link || it.title}-${i}`} className="text-sm leading-snug text-slate-100">
+            <span className="font-medium text-slate-50">{it.title}</span>
+            {it.source ? (
+              <span className="text-xs text-slate-400"> — {it.source}</span>
+            ) : null}
+            {it.pubDate ? (
+              <span className="mt-0.5 block font-mono text-[0.65rem] text-slate-500">{it.pubDate}</span>
+            ) : null}
+            {it.link ? (
+              <a
+                href={it.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-0.5 block truncate text-xs text-teal-300 underline decoration-teal-500/50 underline-offset-2 hover:text-teal-200"
+              >
+                {it.link}
+              </a>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {when ? <p className="mt-2 text-[0.65rem] text-slate-500">Fetched {when} (voice server → NewsData.io).</p> : null}
+    </div>
+  );
+}
+
 function InsightBody({ data, tone = "indigo" }: { data: CognitiveResponse; tone?: "indigo" | "rose" }) {
   const agentOk = data.agentverse && "ok" in data.agentverse && data.agentverse.ok;
   const message =
@@ -174,6 +288,8 @@ function InsightBody({ data, tone = "indigo" }: { data: CognitiveResponse; tone?
           </p>
         </div>
       ) : null}
+
+      {data.researchNews ? <ResearchHeadlinesCard researchNews={data.researchNews} tone={tone} /> : null}
 
       {fetchChain === "drift-only" ? (
         <div
@@ -479,7 +595,9 @@ export function CognitiveFetchCard({
               Fetch.ai cognitive insight
             </DialogTitle>
             <DialogDescription className={clinical ? "text-rose-100/65" : "text-slate-400"}>
-              Live pipeline trace plus memory, browser, drift, and note when ASI succeeds.
+              Live pipeline trace plus memory, browser, drift, and note when ASI succeeds. When{" "}
+              <code className="rounded bg-black/30 px-1 text-[0.85em]">NEWSDATA_API_KEY</code> is set on the voice
+              server, this run also pulls indexed headlines on Alzheimer&apos;s / brain health (see section below).
             </DialogDescription>
           </DialogHeader>
 
@@ -490,6 +608,11 @@ export function CognitiveFetchCard({
             agentSucceeded={traceAgentOk}
             parseFallback={parseFallback}
             agentChain={fetchChainForTrace}
+            researchNews={
+              !loading
+                ? (data?.researchNews ?? stored?.researchNews ?? null)
+                : null
+            }
           />
 
           {loading ? (

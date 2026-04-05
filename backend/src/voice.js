@@ -23,11 +23,13 @@ import {
   recordBrowserAutomationComplete,
   getDashboard,
 } from "./activityStore.js";
+import { getPhysicalActivityDashboard } from "./physicalActivityStore.js";
 import {
-  getPhysicalActivityDashboard,
-  updatePhysicalActivitySnapshot,
-} from "./physicalActivityStore.js";
-import { addWhoPress } from "./memoryStore.js";
+  addWhoPress,
+  getLoggedMediaEpisodeUrl,
+  getNarrative,
+  parseEpisodeFromText,
+} from "./memoryStore.js";
 import {
   analyzeRoutinesCaregiverNegotiation,
   getRoutinesNegotiationContext,
@@ -41,12 +43,14 @@ import {
 } from "./cognitiveSnapshot.js";
 import {
   buildHolisticCognitiveSnapshot,
+  formatHolisticPayloadForVapiVariable,
   getHolisticCache,
   peekHolisticCacheForReport,
   parseFetchInsightSections,
   setHolisticCache,
 } from "./fetchHolisticContext.js";
 import { postCognitiveSnapshot, isCognitiveAgentConfigured } from "./agentverseClient.js";
+import { fetchResearchNewsBrief } from "./researchNewsBrief.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -398,7 +402,10 @@ app.get("/cognitive/agentverse", async (req, res) => {
         return;
       }
     }
-    const bundle = await buildHolisticCognitiveSnapshot({ windowHours });
+    const [bundle, researchNews] = await Promise.all([
+      buildHolisticCognitiveSnapshot({ windowHours }),
+      fetchResearchNewsBrief(),
+    ]);
     const agentverse = await postCognitiveSnapshot(bundle.snapshot);
     let parsed = null;
     if (agentverse.ok && agentverse.data && typeof agentverse.data.user_message === "string") {
@@ -409,6 +416,7 @@ app.get("/cognitive/agentverse", async (req, res) => {
       baseline: bundle.baseline,
       drift: bundle.drift,
       agentverse,
+      researchNews,
       sections: parsed ? parsed.sections : null,
       insightUnparsed: parsed ? Boolean(parsed.unparsed) : null,
       supportIntensity: parsed?.supportIntensity ?? null,
@@ -462,7 +470,9 @@ app.post("/cognitive/agentverse/analyze", async (req, res) => {
           drift = bundle.drift;
           return bundle.snapshot;
         })();
+    const researchNewsPromise = fetchResearchNewsBrief();
     const agentverse = await postCognitiveSnapshot(snapshot);
+    const researchNews = await researchNewsPromise;
     let parsed = null;
     if (agentverse.ok && agentverse.data && typeof agentverse.data.user_message === "string") {
       parsed = parseFetchInsightSections(agentverse.data.user_message);
@@ -472,6 +482,7 @@ app.post("/cognitive/agentverse/analyze", async (req, res) => {
       baseline,
       drift,
       agentverse,
+      researchNews,
       sections: parsed ? parsed.sections : null,
       insightUnparsed: parsed ? Boolean(parsed.unparsed) : null,
       supportIntensity: parsed?.supportIntensity ?? null,
@@ -485,15 +496,6 @@ app.post("/cognitive/agentverse/analyze", async (req, res) => {
 app.get("/physical-activity", async (_req, res) => {
   try {
     const data = await getPhysicalActivityDashboard();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "failed" });
-  }
-});
-
-app.patch("/physical-activity", async (req, res) => {
-  try {
-    const data = await updatePhysicalActivitySnapshot(req.body ?? {});
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "failed" });
@@ -888,7 +890,6 @@ app.post("/send-report", async (req, res) => {
           <h2 style="color:#4a5f4b;margin-top:24px">Physical Activity / wellness dashboard</h2>
           <p style="color:#5a6b5b;font-size:0.9rem">Estimates from browsing and in-app signals — not clinical.</p>
           <ul style="margin:8px 0 0;padding-left:20px;color:#2d3c2e">
-            <li>Self-reported felt age: <strong>${dash2.perceivedSelfAge}</strong></li>
             <li>Media mood (rolling): <strong>${typeof dash2.averageMediaMood === "number" ? dash2.averageMediaMood.toFixed(2) : "—"}</strong> (${escapeHtml(dash2.averageMediaMoodLabel || "")})</li>
             <li>Content age band: <strong>${escapeHtml(dash2.mediaAgeBand || "")}</strong> — ${escapeHtml(dash2.mediaAgeDescription || "")}</li>
           </ul>
@@ -952,13 +953,32 @@ app.post("/send-report", async (req, res) => {
   }
 });
 
-// Returns the Vapi assistant ID to the frontend
-app.get("/vapi-config", (_req, res) => {  const assistantId = process.env.VAPI_ASSISTANT_ID;
+// Returns the Vapi assistant ID + optional overrides (conversational: user speaks first, then model / client can reply).
+app.get("/vapi-config", (_req, res) => {
+  const assistantId = process.env.VAPI_ASSISTANT_ID;
   if (!assistantId) {
     res.status(503).json({ error: "VAPI_ASSISTANT_ID is not set in .env" });
     return;
   }
-  res.json({ assistantId });
+
+  const holisticEnabled = !/^0|false$/i.test(String(process.env.VAPI_HOLISTIC_CONTEXT ?? "1"));
+  const maxHolistic = Number(process.env.VAPI_HOLISTIC_CONTEXT_MAX_CHARS || 2400);
+  let boomerHolisticContext = "";
+  if (holisticEnabled) {
+    const entry = peekHolisticCacheForReport();
+    const p = entry && typeof entry.payload === "object" ? entry.payload : null;
+    boomerHolisticContext = formatHolisticPayloadForVapiVariable(p, maxHolistic);
+  }
+
+  res.json({
+    assistantId,
+    assistantOverrides: {
+      firstMessageMode: "assistant-waits-for-user",
+      variableValues: {
+        boomer_holistic_context: boomerHolisticContext,
+      },
+    },
+  });
 });
 
 /**
@@ -975,6 +995,28 @@ function taskNeedsMessagingAutomation(task) {
   if (/\bin\s+(?:vietnamese|spanish|french|chinese|korean|japanese|german|italian|portuguese|arabic|hindi)\b/.test(t))
     return true;
   return false;
+}
+
+/** Prefix for messages that should skip Browser Use and return as plain assistant text (e.g. no routine data yet). */
+const ROUTINE_INLINE_MESSAGE_PREFIX = "__BOOMER_ROUTINE_MSG__:";
+
+function isRoutineInlineMessage(enriched) {
+  return String(enriched ?? "").startsWith(ROUTINE_INLINE_MESSAGE_PREFIX);
+}
+
+function stripRoutineInlineMessage(enriched) {
+  return String(enriched ?? "").slice(ROUTINE_INLINE_MESSAGE_PREFIX.length);
+}
+
+/** "Open my routine / daily routine" → use mined URLs locally, not Browser Use Cloud (remote browser opens nothing on the user’s machine). */
+function isOpenRoutineBrowsingTask(task) {
+  const raw = String(task ?? "").trim();
+  if (!raw) return false;
+  const t = raw.toLowerCase();
+  const mentionsRoutine =
+    /\b(routines?|daily\s+routine|my\s+routine)\b/.test(t) || (/\bdaily\b/.test(t) && /\broutine\b/.test(t));
+  if (!mentionsRoutine) return false;
+  return /\b(open|show|take\s+me|start|launch|go\s+to|visit|bring\s+up|run)\b/.test(t) || /^(open|show)\s+/i.test(raw);
 }
 
 // Searches activity history AND loved ones to resolve vague tasks
@@ -1026,6 +1068,45 @@ async function resolveTaskWithHistory(task) {
           }
         }
       }
+    }
+  } catch {}
+
+  // Logged YouTube Friends episodes (memory.json) → open matching search when user names an episode
+  try {
+    const raw = String(task ?? "");
+    const t = raw.toLowerCase();
+    const ep = parseEpisodeFromText(raw);
+    if (ep != null && ep >= 1) {
+      const nar = await getNarrative();
+      const mentionsFriends = /\bfriends\b/.test(t);
+      const watchingIntent =
+        /\b(watching|watch|open|play|episode|ep\.?)\b/.test(t) ||
+        /i\s*['']?m\s+(on|at|watching)\b/.test(t);
+      const useFriends =
+        mentionsFriends || (String(nar.seriesKey || "") === "friends" && watchingIntent);
+      if (useFriends) {
+        const logged = await getLoggedMediaEpisodeUrl("friends", ep);
+        const url =
+          logged ||
+          `https://www.youtube.com/results?search_query=${encodeURIComponent(`Friends season 1 episode ${ep}`)}`;
+        console.log(`[browser-automation] Friends episode ${ep} → ${url.slice(0, 120)}`);
+        const line = `Alright — opening episode ${ep} of Friends on YouTube for you.`;
+        return `${line}\n\nOpen this URL: ${url}`;
+      }
+    }
+  } catch {}
+
+  try {
+    if (isOpenRoutineBrowsingTask(task)) {
+      const flow = await getRoutineFlow();
+      const steps = flow.steps ?? [];
+      const urls = steps
+        .map((s) => String(s?.url ?? "").trim())
+        .filter((u) => /^https?:\/\//i.test(u));
+      if (urls.length === 0) {
+        return `${ROUTINE_INLINE_MESSAGE_PREFIX}${flow.patternSummary || "No routine steps yet."}`;
+      }
+      return urls.map((u) => `Open this URL: ${u}`).join("\n");
     }
   } catch {}
 
@@ -1081,9 +1162,30 @@ Reply with ONLY a JSON object: {"url": "...", "matched": true/false}`,
  */
 function isResolvedDirectBrowserTask(enriched) {
   const s = String(enriched ?? "").trim();
-  return (
-    /^Open this URL to contact\b/i.test(s) ||
-    /^Open this URL:\s*(https?:\/\/|tel:)/i.test(s)
+  if (!s || isRoutineInlineMessage(s)) return false;
+  if (/^Open this URL to contact\b/i.test(s)) return true;
+  const lines = s
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length) return false;
+  const openLines = lines.filter(
+    (l) =>
+      /^Open this URL to contact\b/i.test(l) || /^Open this URL:\s*(https?:\/\/|tel:)/i.test(l),
+  );
+  if (openLines.length === 0) return false;
+  for (const l of lines) {
+    if (
+      /^Open this URL to contact\b/i.test(l) ||
+      /^Open this URL:\s*(https?:\/\/|tel:)/i.test(l)
+    ) {
+      continue;
+    }
+    if (/\bhttps?:\/\//i.test(l)) return false;
+  }
+  return openLines.every(
+    (l) =>
+      /^Open this URL to contact\b/i.test(l) || /^Open this URL:\s*(https?:\/\/|tel:)/i.test(l),
   );
 }
 
@@ -1112,6 +1214,12 @@ app.post("/browser-automation", async (req, res) => {
   let enrichedTask = task;
   if (process.env.OPENAI_API_KEY) {
     enrichedTask = await resolveTaskWithHistory(task).catch(() => task);
+  }
+
+  if (isRoutineInlineMessage(enrichedTask)) {
+    void recordBrowserAutomationComplete(task).catch(() => {});
+    res.json({ output: stripRoutineInlineMessage(enrichedTask), taskId: null, liveUrl: null });
+    return;
   }
 
   if (isResolvedDirectBrowserTask(enrichedTask) && !taskNeedsMessagingAutomation(task)) {
@@ -1174,9 +1282,20 @@ app.post("/browser-automation/stream", async (req, res) => {
     }
   }
 
+  if (isRoutineInlineMessage(enrichedTask)) {
+    send({ type: "progress", message: "Checked your usual sites…" });
+    send({ type: "done", output: stripRoutineInlineMessage(enrichedTask) });
+    void recordBrowserAutomationComplete(task).catch(() => {});
+    res.end();
+    return;
+  }
+
   if (isResolvedDirectBrowserTask(enrichedTask) && !taskNeedsMessagingAutomation(task)) {
     console.log(`[browser-automation/stream] Direct contact/history URL — skipping worker: ${enrichedTask.slice(0, 160)}`);
-    send({ type: "progress", message: "Opening saved contact link…" });
+    send({
+      type: "progress",
+      message: enrichedTask.includes("\n") ? "Opening your usual sites…" : "Opening saved link…",
+    });
     send({ type: "done", output: enrichedTask });
     void recordBrowserAutomationComplete(task).catch(() => {});
     res.end();

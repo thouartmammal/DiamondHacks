@@ -3,7 +3,6 @@ import {
   Activity,
   ClipboardList,
   Eye,
-  Heart,
   Loader2,
   MessageCircleWarning,
   Shield,
@@ -24,7 +23,6 @@ export type NegotiationChatLine = {
 
 /** Shown inside the clinician memo card (same numbers as the old top stat tiles). */
 export type ClinicianMemoWellnessSnapshot = {
-  perceivedSelfAge: number;
   averageMediaMood: number;
   averageMediaMoodLabel: string;
   mediaAgeBandLabel: string;
@@ -121,17 +119,9 @@ function AnalysisWellnessContext({ snapshot }: { snapshot: ClinicianMemoWellness
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-3 sm:p-4">
       <p className="mb-3 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-rose-300">
-        Perceived age, media mood &amp; media age (analysis context)
+        Media mood &amp; media age (analysis context)
       </p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-x-5">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-slate-200">
-            <Heart className="h-4 w-4 shrink-0 text-rose-300" strokeWidth={2} aria-hidden />
-            <span className="text-[0.65rem] font-bold uppercase tracking-[0.12em]">Perceived age</span>
-          </div>
-          <p className="text-2xl font-extrabold tabular-nums text-slate-50 sm:text-3xl">{snapshot.perceivedSelfAge}</p>
-          <p className="mt-1 text-xs leading-snug text-slate-400">Self-reported felt age (in-app check-in).</p>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-5">
         <div>
           <div className="mb-1 flex items-center gap-2 text-slate-200">
             <Activity className="h-4 w-4 shrink-0 text-rose-300" strokeWidth={2} aria-hidden />

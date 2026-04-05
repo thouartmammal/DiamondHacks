@@ -9,7 +9,45 @@ function vapiSendToolResult(vapi: Vapi, payload: { toolCallId: string; result: s
   });
 }
 
-/** Best-effort: open phone or web contact URL from automation result (popup blocker may block http(s) after async). */
+type VapiToolCall = {
+  id: string;
+  function?: { name?: string; arguments?: string | Record<string, unknown> };
+};
+
+/**
+ * Vapi may wrap client events as `{ message: { type, ... } }`. Prefer the inner object when
+ * it looks like a real client message so tool-calls, transcripts, and status lines all parse.
+ */
+function unwrapVapiClientMessage(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object") return {};
+  const o = raw as Record<string, unknown>;
+  const inner = o.message;
+  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+    const m = inner as Record<string, unknown>;
+    if (typeof m.type === "string") return m;
+  }
+  return o;
+}
+
+/**
+ * Newer Vapi client messages include `toolWithToolCallList[].toolCall` instead of (or in addition to)
+ * `toolCallList`. We only iterated `toolCallList` before, so client-side browser tools never ran.
+ */
+function vapiToolCallsFromPayload(msg: Record<string, unknown>): VapiToolCall[] {
+  const direct = msg.toolCallList;
+  if (Array.isArray(direct) && direct.length > 0) return direct as VapiToolCall[];
+  const wrapped = msg.toolWithToolCallList;
+  if (!Array.isArray(wrapped)) return [];
+  const out: VapiToolCall[] = [];
+  for (const item of wrapped) {
+    if (!item || typeof item !== "object") continue;
+    const tc = (item as { toolCall?: VapiToolCall }).toolCall;
+    if (tc && typeof tc.id === "string") out.push(tc);
+  }
+  return out;
+}
+
+/** Best-effort: open tel: or all distinct https URLs in order (routine flow, history resolution; popup blocker may block). */
 function tryOpenFirstContactUrlFromBrowserResult(text: string) {
   const tel = text.match(/\btel:[+\d][^\s\])"'<>]*/i);
   if (tel?.[0]) {
@@ -20,13 +58,25 @@ function tryOpenFirstContactUrlFromBrowserResult(text: string) {
     }
     return;
   }
-  const m = text.match(/https?:\/\/[^\s\])"'<>]+/);
-  if (!m?.[0]) return;
-  try {
-    window.open(m[0], "_blank", "noopener,noreferrer");
-  } catch {
-    /* ignore */
+  const urls = [...text.matchAll(/\bhttps?:\/\/[^\s\])"'<>]+/gi)].map((m) => m[0]);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const u of urls) {
+    if (seen.has(u)) continue;
+    seen.add(u);
+    unique.push(u);
   }
+  if (!unique.length) return;
+  void (async () => {
+    for (let i = 0; i < unique.length; i++) {
+      try {
+        window.open(unique[i], "_blank", "noopener,noreferrer");
+      } catch {
+        /* ignore */
+      }
+      if (i < unique.length - 1) await new Promise((r) => setTimeout(r, 450));
+    }
+  })();
 }
 import { MemoryPanel } from "./MemoryPanel";
 import { ContinuityGuardianPanel } from "./ContinuityGuardianPanel";
@@ -46,6 +96,24 @@ import { runBrowserAutomationStream } from "../lib/browserAutomationStream";
 import { useTranslation } from "../i18n/LanguageContext";
 
 const HERO_TAGLINE_STAGGER_S = 0.075;
+
+/** Short pleasantries — final transcript triggers a local `vapi.say` so Boomer always answers hi back. */
+function isUserGreetingUtterance(raw: string): boolean {
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[!?.]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized || normalized.length > 56) return false;
+  if (["hi", "hello", "hey", "howdy", "yo"].includes(normalized)) return true;
+  if (/^(hi|hello|hey|howdy|yo)\s/.test(normalized)) return true;
+  if (/^good (morning|afternoon|evening)(\s|$|,)/.test(normalized)) return true;
+  if (/^greetings\b/.test(normalized)) return true;
+  if (/^(chào|xin chào)(\s|$|!)/.test(normalized)) return true;
+  if (normalized === "chao") return true;
+  return false;
+}
 
 function HeroTaglineWords({ text }: { text: string }) {
   const words = text.trim().split(/\s+/).filter(Boolean);
@@ -84,22 +152,34 @@ export default function App() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceStarting, setVoiceStarting] = useState(false);
   const [browserBusy, setBrowserBusy] = useState(false);
+  /** Immediate guard (state lags); voice + form + tools share the same runner. */
+  const browserBusyRef = useRef(false);
+  /** Dedupe same spoken task vs echo tool-call within a short window. */
+  const lastVoiceBrowserDedupeRef = useRef<{ key: string; at: number } | null>(null);
   /** Single plain-language line (latest only) while a browser task runs. */
   const [browserProgressLine, setBrowserProgressLine] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-
+  /** Vapi emits `call-start-success` when `start()` finishes; `call-start` may follow later via Daily `listening` — UI must not wait only for `call-start` or waves never appear. */
+  const vapiElectronSessionNotifiedRef = useRef(false);
+  /** Debounce repeated `vapi.say` for “hi” so STT partials / echoes do not stack. */
+  const lastVoiceGreetingReplyAtRef = useRef(0);
   useEffect(() => {
     const electronAPI = (window as unknown as { electronAPI?: Record<string, unknown> }).electronAPI;
 
-    const onCallStart = () => {
+    const markCallLive = () => {
       setIsConnected(true);
       setVoiceStarting(false);
-      (electronAPI as { sessionStarted?: () => void })?.sessionStarted?.();
+      if (!vapiElectronSessionNotifiedRef.current) {
+        vapiElectronSessionNotifiedRef.current = true;
+        (electronAPI as { sessionStarted?: () => void })?.sessionStarted?.();
+      }
     };
     const onCallEnd = () => {
+      vapiElectronSessionNotifiedRef.current = false;
       setIsConnected(false);
       setIsSpeaking(false);
+      setVoiceError(null);
       (electronAPI as { sessionEnded?: () => void })?.sessionEnded?.();
     };
     const onSpeechStart = () => {
@@ -113,40 +193,160 @@ export default function App() {
     const onError = (e: unknown) => {
       console.error("Vapi error:", e);
       const err = e as { error?: { message?: string }; message?: string };
-      const msg = err?.error?.message ?? err?.message ?? (e as { error?: string })?.error ?? JSON.stringify(e);
-      setVoiceError(typeof msg === "string" ? msg : JSON.stringify(msg));
+      const raw = err?.error?.message ?? err?.message ?? (e as { error?: string })?.error ?? "";
+      const msg = typeof raw === "string" && raw ? raw : "";
+      let haystack = msg;
+      try {
+        haystack = `${msg}\n${JSON.stringify(e)}`;
+      } catch {
+        haystack = msg || String(e);
+      }
+      /** Daily / WebRTC often emits “ejected” or “left” after a normal hang-up — don’t alarm the user. */
+      if (
+        /ejected|due to ejection|participant.*left|left the meeting|meeting ended|meeting has ended|call ended/i.test(
+          haystack,
+        )
+      ) {
+        setVoiceError(null);
+        vapiElectronSessionNotifiedRef.current = false;
+        setVoiceStarting(false);
+        setIsConnected(false);
+        return;
+      }
+      const displayErr =
+        msg ||
+        (() => {
+          try {
+            return JSON.stringify(e).slice(0, 500);
+          } catch {
+            return "Voice connection error";
+          }
+        })();
+      setVoiceError(displayErr);
+      vapiElectronSessionNotifiedRef.current = false;
       setVoiceStarting(false);
       setIsConnected(false);
     };
 
+    const VOICE_BROWSER_DEDUPE_MS = 10_000;
+
+    const runVoiceBrowserAutomation = async (rawTask: string, toolCallId?: string) => {
+      const trimmed = rawTask.trim();
+      if (!trimmed) {
+        if (toolCallId)
+          vapiSendToolResult(vapi, { toolCallId, result: "Error: empty browser task." });
+        return;
+      }
+      if (browserBusyRef.current) {
+        if (toolCallId)
+          vapiSendToolResult(vapi, { toolCallId, result: "A browser task is already running." });
+        return;
+      }
+      const key = trimmed.toLowerCase().replace(/\s+/g, " ");
+      const now = Date.now();
+      const prev = lastVoiceBrowserDedupeRef.current;
+      if (prev && now - prev.at < VOICE_BROWSER_DEDUPE_MS && prev.key === key) {
+        if (toolCallId)
+          vapiSendToolResult(vapi, {
+            toolCallId,
+            result: "Same browser request was just started from your voice; check tabs or progress.",
+          });
+        return;
+      }
+      lastVoiceBrowserDedupeRef.current = { key, at: now };
+
+      browserBusyRef.current = true;
+      setBrowserBusy(true);
+      setBrowserProgressLine(null);
+      try {
+        console.log("[Voice→Browser]", trimmed);
+        const out = await runBrowserAutomationStream(trimmed, (line) => {
+          setBrowserProgressLine(line);
+        });
+        tryOpenFirstContactUrlFromBrowserResult(out);
+        if (toolCallId) vapiSendToolResult(vapi, { toolCallId, result: out });
+      } catch (e: unknown) {
+        const msgErr = e instanceof Error ? e.message : String(e);
+        if (toolCallId) vapiSendToolResult(vapi, { toolCallId, result: `Error: ${msgErr}` });
+        else console.warn("[Voice→Browser]", msgErr);
+      } finally {
+        browserBusyRef.current = false;
+        setBrowserBusy(false);
+        setBrowserProgressLine(null);
+      }
+    };
+
     const onMessage = async (...args: unknown[]) => {
-      const msg = args[0] as {
+      const msg = unwrapVapiClientMessage(args[0]) as {
         type?: string;
-        toolCallList?: Array<{ id: string; function?: { name?: string; arguments?: string | Record<string, unknown> } }>;
+        transcriptType?: string;
+        role?: string;
+        transcript?: string;
+        toolCallList?: unknown;
+        toolWithToolCallList?: unknown;
       };
-      if (msg.type === "tool-calls") {
-        for (const call of msg.toolCallList ?? []) {
-          if (call.function?.name === "run_browser_task") {
-            setBrowserBusy(true);
-            setBrowserProgressLine(null);
+      const msgType = String(msg.type ?? "");
+      if (msgType.includes("transcript")) {
+        if (
+          msg.transcriptType === "final" &&
+          msg.role === "user" &&
+          typeof msg.transcript === "string"
+        ) {
+          const line = msg.transcript;
+          if (isUserGreetingUtterance(line)) {
+            const now = Date.now();
+            if (now - lastVoiceGreetingReplyAtRef.current > 10_000) {
+              lastVoiceGreetingReplyAtRef.current = now;
+              try {
+                (vapi as unknown as { say: (m: string, e?: boolean, i?: boolean, interrupt?: boolean) => void }).say(
+                  t("app.voiceGreetingReply"),
+                  false,
+                  true,
+                  true,
+                );
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+        }
+        return;
+      }
+      const isToolCallsMessage =
+        msg.type === "tool-calls" ||
+        (Array.isArray(msg.toolCallList) && msg.toolCallList.length > 0) ||
+        (Array.isArray(msg.toolWithToolCallList) && msg.toolWithToolCallList.length > 0);
+
+      if (isToolCallsMessage) {
+        const toolCalls = vapiToolCallsFromPayload(msg as Record<string, unknown>);
+        if (toolCalls.length === 0 && msg.type === "tool-calls") {
+          console.warn("[Vapi] tool-calls message had no calls after normalize", msg);
+        }
+        for (const call of toolCalls) {
+          const fnName = call.function?.name ?? "";
+          if (fnName === "run_browser_task" || fnName === "open_website") {
+            let taskStr = "";
             try {
               const args =
-                typeof call.function.arguments === "string"
+                typeof call.function?.arguments === "string"
                   ? JSON.parse(call.function.arguments)
-                  : call.function.arguments;
-              const task = (args as { task?: unknown })?.task ?? args;
-              console.log("Browser task:", task);
-              const out = await runBrowserAutomationStream(String(task ?? ""), (message) => {
-                setBrowserProgressLine(message);
+                  : call.function?.arguments;
+              const rec = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+              if (fnName === "open_website") {
+                taskStr = String(rec.query ?? rec.phrase ?? rec.text ?? rec.url ?? "").trim();
+              }
+              if (!taskStr) taskStr = String(rec.task ?? "").trim();
+              if (!taskStr && args != null) taskStr = String(args).trim();
+            } catch {
+              taskStr = "";
+            }
+            if (!taskStr) {
+              vapiSendToolResult(vapi, {
+                toolCallId: call.id,
+                result: `Error: ${fnName} needs a non-empty query or task string.`,
               });
-              tryOpenFirstContactUrlFromBrowserResult(out);
-              vapiSendToolResult(vapi, { toolCallId: call.id, result: out });
-            } catch (e: unknown) {
-              const msgErr = e instanceof Error ? e.message : String(e);
-              vapiSendToolResult(vapi, { toolCallId: call.id, result: `Error: ${msgErr}` });
-            } finally {
-              setBrowserBusy(false);
-              setBrowserProgressLine(null);
+            } else {
+              await runVoiceBrowserAutomation(taskStr, call.id);
             }
           } else if (call.function?.name === "analyze_daily_routines") {
             try {
@@ -230,7 +430,8 @@ export default function App() {
       vapi.stop();
     };
 
-    vapi.on("call-start", onCallStart);
+    vapi.on("call-start", markCallLive);
+    vapi.on("call-start-success", markCallLive);
     vapi.on("call-end", onCallEnd);
     vapi.on("speech-start", onSpeechStart);
     vapi.on("speech-end", onSpeechEnd);
@@ -243,7 +444,8 @@ export default function App() {
     };
 
     return () => {
-      vapiEmitter.removeListener("call-start", onCallStart);
+      vapiEmitter.removeListener("call-start", markCallLive);
+      vapiEmitter.removeListener("call-start-success", markCallLive);
       vapiEmitter.removeListener("call-end", onCallEnd);
       vapiEmitter.removeListener("speech-start", onSpeechStart);
       vapiEmitter.removeListener("speech-end", onSpeechEnd);
@@ -251,51 +453,27 @@ export default function App() {
       vapiEmitter.removeListener("message", onMessage);
       (electronAPI as { offEndSession?: () => void })?.offEndSession?.();
     };
-  }, [vapi]);
-
-  // Wake word detection via Python backend polling
-  const wakeRecogRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const wakeActiveRef = useRef(false);
-  const startVoiceSessionRef = useRef<() => void>(() => {});
-
-  useEffect(() => {
-    const poll = setInterval(async () => {
-      if (wakeActiveRef.current) return;
-      try {
-        const res = await fetch(apiUrl("wake-word-poll"));
-        const data = await res.json();
-        if (data.detected && !wakeActiveRef.current) {
-          console.log("[Boomer] Wake word detected via Python!");
-          wakeActiveRef.current = true;
-          startVoiceSessionRef.current();
-        }
-      } catch {}
-    }, 500);
-    wakeRecogRef.current = poll;
-    return () => clearInterval(poll);
-  }, []);
-
-  useEffect(() => {
-    if (isConnected) {
-      wakeActiveRef.current = true;
-    } else {
-      const t = setTimeout(() => { wakeActiveRef.current = false; }, 1500);
-      return () => clearTimeout(t);
-    }
-  }, [isConnected]);
+  }, [vapi, t]);
 
   async function startVoiceSession() {
     setVoiceError(null);
-    wakeActiveRef.current = true;
-    setVoiceStarting(true);    try {
+    setVoiceStarting(true);
+    try {
       const res = await fetch(apiUrl("vapi-config"));
       const text = await res.text();
       if (!text) throw new Error("Empty response from voice server — is it running?");
-      const data = JSON.parse(text) as { assistantId?: string; error?: string };
+      const data = JSON.parse(text) as {
+        assistantId?: string;
+        assistantOverrides?: Record<string, unknown>;
+        error?: string;
+      };
       if (!res.ok) throw new Error(data.error || res.statusText);
       if (!data.assistantId) throw new Error("No assistant ID from server");
       console.log("Starting Vapi with assistant:", data.assistantId);
-      await vapi.start(data.assistantId);
+      await vapi.start(
+        data.assistantId,
+        (data.assistantOverrides ?? undefined) as Parameters<Vapi["start"]>[1],
+      );
     } catch (e: any) {
       setVoiceError(e.message ?? "Could not start voice");
       setVoiceStarting(false);
@@ -308,14 +486,11 @@ export default function App() {
     await startVoiceSession();
   }
 
-  // Keep ref in sync so the wake word listener always calls the latest version
-  startVoiceSessionRef.current = startVoiceSession;
-
   const [uiVisible, setUiVisible] = useState(false);
-  /** Voice circle + task bar: hidden until swipe/scroll-up; stay visible during an active call. */
-  const showVoiceChrome = uiVisible || isConnected;
+  /** Voice circle + task bar: hidden until swipe/scroll-up; stay visible during an active call or while voice is starting. */
+  const showVoiceChrome = uiVisible || isConnected || voiceStarting;
   /** Until the user reveals chrome, lock vertical scroll so the first wheel/swipe only reveals UI. */
-  const scrollLocked = !uiVisible && !isConnected;
+  const scrollLocked = !uiVisible && !isConnected && !voiceStarting;
   const scrollLockedRef = useRef(scrollLocked);
   scrollLockedRef.current = scrollLocked;
   const scrollRootRef = useRef<HTMLDivElement>(null);
@@ -755,7 +930,8 @@ export default function App() {
               e.preventDefault();
               const input = (e.currentTarget.elements.namedItem("task") as HTMLInputElement);
               const task = input.value.trim();
-              if (!task || browserBusy) return;
+              if (!task || browserBusyRef.current) return;
+              browserBusyRef.current = true;
               setBrowserBusy(true);
               setBrowserProgressLine(null);
               try {
@@ -767,6 +943,7 @@ export default function App() {
               } catch (err: unknown) {
                 setVoiceError(err instanceof Error ? err.message : t("app.browserTaskFailed"));
               } finally {
+                browserBusyRef.current = false;
                 setBrowserBusy(false);
                 setBrowserProgressLine(null);
               }

@@ -34,6 +34,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     "app.digitalActivitiesPrefix": "click here to see your",
     "app.digitalActivitiesAccent": "digital activities",
     "app.browserProgressAria": "Browser task progress",
+    "app.voiceGreetingReply":
+      "Hi! I'm Boomer — great to hear from you. What would you like to do today?",
 
     "dashboard.activitySummary": "Your activity summary",
     "dashboard.title": "Your Boomer dashboard",
@@ -142,6 +144,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     "app.digitalActivitiesPrefix": "bấm vào đây để xem",
     "app.digitalActivitiesAccent": "hoạt động kỹ thuật số",
     "app.browserProgressAria": "Tiến trình tác vụ trình duyệt",
+    "app.voiceGreetingReply":
+      "Chào bạn! Mình là Boomer — rất vui được nghe giọng bạn. Bạn cần mình giúp gì hôm nay?",
 
     "dashboard.activitySummary": "Tóm tắt hoạt động của bạn",
     "dashboard.title": "Bảng điều khiển Boomer",
