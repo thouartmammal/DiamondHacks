@@ -3,3 +3,7 @@ venv/
 ENV/
 .env
 node_modules
+backend/data/
+*.db
+*.bak
+*.json
