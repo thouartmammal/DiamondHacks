@@ -1,0 +1,5 @@
+# Python deps for browser_worker.py and browser_task.py (browser-use + Edge automation).
+# From the backend folder: pip install -r requirements-worker.txt
+# Or set PYTHON_BROWSER_WORKER to a venv Python that has these installed.
+python-dotenv>=1.0.0
+browser-use>=0.1.0

@@ -1,0 +1,4 @@
+2026/03/25-15:27:17.188 a794 Creating DB C:\Users\amand\Hackathon\Boomer Browse\backend\.edge-profile\Default\Local Storage\leveldb since it was missing.
+2026/03/25-15:27:17.257 a794 Reusing MANIFEST C:\Users\amand\Hackathon\Boomer Browse\backend\.edge-profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/03/25-15:28:43.209 6bfc Level-0 table #5: started
+2026/03/25-15:28:43.241 6bfc Level-0 table #5: 38156 bytes OK

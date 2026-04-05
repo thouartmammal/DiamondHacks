@@ -1,0 +1,5 @@
+# For fetch-agents/perception/query_bridge.py (Boomer Node -> hosted Perception agent)
+# Use Python 3.10–3.13 for this venv. Python 3.14+ breaks uagents (Pydantic v1).
+# If your default `python` is 3.14+, install uagents on 3.12: py -3.12 -m pip install -r fetch-agents/requirements-query-bridge.txt
+# Match perception/agent.py local stack (digest alignment with Model.build_schema_digest)
+uagents==0.24

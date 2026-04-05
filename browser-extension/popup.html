@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 340px;
+      padding: 20px 18px 22px;
+      background: linear-gradient(155deg, #0d2d3a 0%, #1a4a62 38%, #2e6478 62%, #7a8a88 82%, #c4a898 100%);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      text-align: center;
+      color: #e8f0f2;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Grain overlay */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body > * { position: relative; z-index: 1; }
+
+    h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 3px;
+      color: #e8f0f2;
+    }
+    p.tagline {
+      font-size: 0.82rem;
+      color: rgba(232,240,242,0.6);
+      margin-bottom: 16px;
+    }
+
+    .card {
+      text-align: left;
+      margin-bottom: 14px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      background: rgba(15,51,71,0.55);
+      border: 1px solid rgba(255,255,255,0.13);
+      backdrop-filter: blur(12px);
+    }
+    .card label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #e8f0f2;
+      line-height: 1.35;
+    }
+    .card input { margin-top: 2px; width: 17px; height: 17px; flex-shrink: 0; cursor: pointer; accent-color: #2a5f72; }
+    .card .hint {
+      font-size: 0.76rem;
+      font-weight: 400;
+      color: rgba(232,240,242,0.55);
+      margin-top: 7px;
+      margin-left: 27px;
+      line-height: 1.45;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 12px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.12s, transform 0.12s;
+      margin-bottom: 8px;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    button.primary {
+      background: rgba(42,95,114,0.75);
+      color: #e8f0f2;
+      border: 1px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(10px);
+    }
+    button.primary:hover:not(:disabled) { opacity: 0.88; }
+
+    button.secondary {
+      background: rgba(15,51,71,0.65);
+      color: #e8f0f2;
+      border: 1px solid rgba(255,255,255,0.13);
+      backdrop-filter: blur(10px);
+    }
+    button.secondary:hover:not(:disabled) { opacity: 0.85; }
+
+    button.ghost {
+      background: transparent;
+      color: rgba(232,240,242,0.7);
+      border: 1px solid rgba(255,255,255,0.18);
+    }
+    button.ghost:hover:not(:disabled) { background: rgba(255,255,255,0.06); }
+
+    p.help {
+      font-size: 0.74rem;
+      color: rgba(232,240,242,0.5);
+      line-height: 1.4;
+      margin-bottom: 12px;
+      text-align: left;
+    }
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+      margin: 12px 0;
+      border: none;
+    }
+
+    #result, #scanResult {
+      display: none;
+      text-align: left;
+      margin-top: 10px;
+      padding: 13px;
+      border-radius: 12px;
+      background: rgba(15,51,71,0.6);
+      border: 1px solid rgba(255,255,255,0.13);
+      font-size: 0.84rem;
+      line-height: 1.5;
+      color: #e8f0f2;
+      max-height: 200px;
+      overflow-y: auto;
+      backdrop-filter: blur(10px);
+    }
+    #result.show, #scanResult.show { display: block; }
+    #result.conflict { border-color: rgba(252,165,165,0.5); }
+    #result.uncertain { border-color: rgba(252,211,77,0.4); }
+    #result.ok { border-color: rgba(134,239,172,0.4); }
+    #scanResult.show { border-color: rgba(94,234,212,0.35); }
+    #scanResult.show.family-found { border-color: rgba(229,192,74,0.5); }
+
+    .tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 8px;
+      margin-bottom: 7px;
+      background: rgba(42,95,114,0.6);
+      color: rgba(232,240,242,0.9);
+      border: 1px solid rgba(255,255,255,0.12);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tag.family { background: rgba(180,130,50,0.35); color: #fde68a; border-color: rgba(253,230,138,0.3); }
+    .headline { font-weight: 700; margin-bottom: 5px; font-size: 0.92rem; color: #e8f0f2; }
+    .family-headline { font-size: 1rem !important; color: #fde68a !important; }
+    .family-msg { font-size: 0.92rem; font-weight: 600; color: #fef3c7; margin: 0 0 9px 0; }
+    ul { margin: 7px 0 0 1.1rem; padding: 0; }
+    li { margin-bottom: 5px; color: rgba(232,240,242,0.85); }
+    .err { color: #fca5a5; font-size: 0.82rem; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Boomer Browse</h1>
+  <p class="tagline">A little help while you're online</p>
+
+  <div class="card">
+    <label for="autoScrape">
+      <input type="checkbox" id="autoScrape" />
+      <span>Save page text in the background</span>
+    </label>
+    <p class="hint">
+      When off, Boomer only remembers which sites you visit. When on, it may also save words from each page to help you later.
+    </p>
+  </div>
+
+  <div class="card">
+    <label for="whoSideBtn">
+      <input type="checkbox" id="whoSideBtn" />
+      <span>Show "Who?" button on pages</span>
+    </label>
+    <p class="hint">
+      Adds a small button on the side of every page. Tap it to find out if someone on screen is in your family list.
+    </p>
+  </div>
+
+  <button type="button" class="primary" id="scanPage">Remember this page</button>
+  <p class="help">Saves what you're looking at and a snapshot. Boomer can match faces to your family list.</p>
+
+  <hr class="divider" />
+
+  <button type="button" class="secondary" id="continuity">Double-check this page</button>
+  <p class="help">Compares this page to what Boomer already knows and flags anything that looks off.</p>
+
+  <button type="button" class="ghost" id="open">Open Boomer</button>
+
+  <div id="scanResult" role="status" aria-live="polite"></div>
+  <div id="result" role="status" aria-live="polite"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

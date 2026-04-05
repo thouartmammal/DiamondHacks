@@ -1,0 +1,4 @@
+# Optional: extension page-scan face match (DeepFace). Heavy deps; install in a venv.
+deepface>=0.0.93
+tf-keras>=2.16.0
+opencv-python-headless>=4.9.0.80

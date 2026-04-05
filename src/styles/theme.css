@@ -1,0 +1,495 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 22px;
+  /* Dreamy blue & cloud white */
+  --background: #f0f7ff;
+  --foreground: #1e3a5f;
+  --card: #f8fbff;
+  --card-foreground: #1e3a5f;
+  --popover: #ffffff;
+  --popover-foreground: #1e3a5f;
+  --primary: #3b82f6;
+  --primary-foreground: #f8fbff;
+  --secondary: #dbeafe;
+  --secondary-foreground: #1e3a5f;
+  --muted: #bfdbfe;
+  --muted-foreground: #5b7a9e;
+  --accent: #7dd3fc;
+  --accent-foreground: #0c4a6e;
+  --destructive: #dc4c6c;
+  --destructive-foreground: #fef6f8;
+  --border: #93c5fd;
+  --input: transparent;
+  --input-background: #e8f2ff;
+  --switch-background: #bfdbfe;
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+  --ring: #60a5fa;
+  --chart-1: #3b82f6;
+  --chart-2: #60a5fa;
+  --chart-3: #7dd3fc;
+  --chart-4: #93c5fd;
+  --chart-5: #bae6fd;
+  --radius: 0.75rem;
+  --sidebar: #e8f2ff;
+  --sidebar-foreground: #1e3a5f;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #f8fbff;
+  --sidebar-accent: #dbeafe;
+  --sidebar-accent-foreground: #1e3a5f;
+  --sidebar-border: #93c5fd;
+  --sidebar-ring: #60a5fa;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@keyframes dream-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 20px 6px rgba(147, 197, 253, 0.45),
+      0 0 40px 12px rgba(96, 165, 250, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 28px 10px rgba(147, 197, 253, 0.65),
+      0 0 56px 20px rgba(125, 211, 252, 0.28);
+  }
+}
+
+.voice-btn {
+  animation: dream-glow 3s ease-in-out infinite;
+  transition: box-shadow 0.4s ease, transform 0.3s ease;
+}
+
+.voice-btn:hover {
+  box-shadow:
+    0 0 52px 22px rgba(147, 197, 253, 0.55),
+    0 0 80px 36px rgba(96, 165, 250, 0.25) !important;
+  transform: scale(1.04);
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
+  70% { box-shadow: 0 0 0 22px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cloud-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(2%, -1.5%) scale(1.02); }
+  66% { transform: translate(-1.5%, 1%) scale(0.99); }
+}
+
+@keyframes cloud-drift-alt {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-2.5%, 2%) scale(1.03); }
+}
+
+.cloud-puff {
+  animation: cloud-drift 28s ease-in-out infinite;
+}
+
+.cloud-puff-delay {
+  animation: cloud-drift-alt 34s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-puff,
+  .cloud-puff-delay {
+    animation: none;
+  }
+}
+
+/* Procedural sky (DreamSkyBackground) — visible drifting clouds */
+@keyframes cloud-drift-slow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(7%, -5%) scale(1.04); }
+  50% { transform: translate(-4%, 6%) scale(0.97); }
+  75% { transform: translate(5%, 3%) scale(1.02); }
+}
+
+@keyframes cloud-drift-slow-alt {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-8%, 4%) scale(1.03); }
+  66% { transform: translate(6%, -6%) scale(1.05); }
+}
+
+@keyframes cloud-drift-slow-wide {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-10%, -3%) scale(1.06); }
+}
+
+.bg-cloud-slow {
+  animation: cloud-drift-slow 38s ease-in-out infinite;
+}
+
+.bg-cloud-slow-alt {
+  animation: cloud-drift-slow-alt 44s ease-in-out infinite;
+}
+
+.bg-cloud-slow-wide {
+  animation: cloud-drift-slow-wide 52s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-cloud-slow,
+  .bg-cloud-slow-alt,
+  .bg-cloud-slow-wide {
+    animation: none;
+  }
+}
+
+/* Fine grain over lower sky (DreamSkyBackground) — extra cloud texture */
+.dream-sky-cloud-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.07' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+
+.dream-sky-cloud-grain-fine {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='f' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.12' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)' opacity='0.65'/%3E%3C/svg%3E");
+  background-size: 72px 72px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dream-sky-cloud-grain {
+    opacity: 0.04;
+  }
+
+  .dream-sky-cloud-grain-fine {
+    opacity: 0.06;
+  }
+}
+
+@keyframes ambient-twinkle {
+  0%, 100% {
+    opacity: 0.25;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.ambient-sparkle-dot {
+  animation-name: ambient-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  box-shadow:
+    0 0 5px 1px rgba(255, 255, 255, 0.9),
+    0 0 14px 3px rgba(255, 255, 255, 0.35);
+}
+
+/* Fainter twinkles in mist (lower sky) */
+@keyframes ambient-twinkle-dim {
+  0%, 100% {
+    opacity: 0.05;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+  50% {
+    opacity: 0.32;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.ambient-sparkle-dot-dim {
+  animation-name: ambient-twinkle-dim;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  box-shadow:
+    0 0 3px 1px rgba(255, 255, 255, 0.45),
+    0 0 8px 1px rgba(200, 210, 220, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-sparkle-dot {
+    animation: none;
+    opacity: 0.38;
+  }
+
+  .ambient-sparkle-dot-dim {
+    animation: none;
+    opacity: 0.2;
+  }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.page-enter {
+  animation: fade-in 0.35s ease forwards;
+}
+
+.page-enter-right {
+  animation: slide-in-right 0.35s ease forwards;
+}
+
+/* Patronus-style cursor sparkles (CursorPatronusSparkles) */
+@keyframes patronus-sparkle {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2) rotate(var(--rot-start, 0deg));
+  }
+  16% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+        calc(-50% + var(--drift-x, 0px)),
+        calc(-50% + var(--drift-y, -16px))
+      )
+      scale(1.05)
+      rotate(calc(var(--rot-start, 0deg) + 140deg));
+  }
+}
+
+.patronus-sparkle-particle {
+  animation: patronus-sparkle 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .patronus-sparkle-particle {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+
+/* Dashboard centerpiece — silver hourglass / gimbal */
+.dashboard-hourglass-wrap {
+  filter: drop-shadow(0 14px 36px rgba(30, 41, 59, 0.2))
+    drop-shadow(0 4px 14px rgba(0, 0, 0, 0.06));
+}
+
+/* Padding + negative margin: layout stays tight; hover scale + glow need gap ≥ 2×padding between adjacent grid cells. */
+.dashboard-glass-hover-surface {
+  margin: -0.75rem;
+  padding: 0.75rem;
+  overflow: visible;
+  min-width: 0;
+  transform-origin: center;
+  transition: transform 0.2s ease-out;
+}
+
+/* Scale the wrapper — not the backdrop-filter layer — so border, blur, and content stay one visual unit (avoids “frame” looking static while text grows). */
+.dashboard-glass-hover-surface:hover {
+  transform: scale(1.035);
+}
+
+/* Icy glass — reference: frosted panels, ~12px radius, readable display type */
+.dashboard-glass-panel {
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 45, 58, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 24px rgba(5, 20, 30, 0.25);
+  color: #e8f0f2;
+  font-family:
+    "Plus Jakarta Sans",
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  font-feature-settings: "ss01" on;
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  transition:
+    box-shadow 0.2s ease-out,
+    border-color 0.2s ease-out,
+    background 0.2s ease-out;
+}
+
+.dashboard-glass-hover-surface:hover .dashboard-glass-panel {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(20, 60, 75, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 32px rgba(42, 95, 114, 0.3),
+    0 8px 32px rgba(5, 20, 30, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-glass-hover-surface {
+    transition: none;
+  }
+
+  .dashboard-glass-hover-surface:hover {
+    transform: none;
+  }
+}
+
+.dashboard-glass-pill {
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(15, 45, 58, 0.42);
+  color: #ddeef2;
+  font-family:
+    "Plus Jakarta Sans",
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 20px rgba(5, 20, 30, 0.2);
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+}

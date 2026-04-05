@@ -1,0 +1,6 @@
+# Local Boomer perception agent (ASI:One + chat protocol). Python 3.10–3.13.
+# https://uagents.fetch.ai/docs/examples/asi-1
+uagents==0.24
+openai
+python-dotenv
+

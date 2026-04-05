@@ -1,0 +1,18 @@
+{
+  "name": "boomer-browse-voice",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "start": "node src/voice.js"
+  },
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.7.0",
+    "better-sqlite3": "^12.8.0",
+    "browser-use-sdk": "^3.3.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "nodemailer": "^8.0.4"
+  }
+}

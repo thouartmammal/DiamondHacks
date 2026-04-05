@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: transparent;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: system-ui, sans-serif;
+    }
+    canvas { display: block; }
+    #label {
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #2563eb;
+      text-shadow: 0 0 12px rgba(147, 197, 253, 0.8);
+    }
+    #end-btn {
+      margin-top: 8px;
+      padding: 4px 16px;
+      border-radius: 9999px;
+      border: 2px solid #3b82f6;
+      background: rgba(248, 251, 255, 0.9);
+      color: #2563eb;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #end-btn:hover { background: #3b82f6; color: #f8fbff; }
+  </style>
+</head>
+<body>
+  <canvas id="wave" width="320" height="80"></canvas>
+  <div id="label">listening…</div>
+  <button id="end-btn">end</button>
+  <script>
+    const canvas = document.getElementById('wave');
+    const ctx = canvas.getContext('2d');
+    const BARS = 32;
+    const COLORS = ['#3b82f6','#60a5fa','#7dd3fc','#93c5fd','#2563eb'];
+    let heights = Array(BARS).fill(4);
+    let targets = Array(BARS).fill(4);
+    let isSpeaking = false;
+    let tick = 0;
+    let animId;
+
+    function setTargets() {
+      targets = heights.map((_, i) => {
+        const center = BARS / 2;
+        const dist = Math.abs(i - center) / center;
+        const base = isSpeaking ? 60 : 36;
+        return Math.random() * base * (1 - dist * 0.5) + 4;
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (tick % 6 === 0) setTargets();
+      tick++;
+      heights = heights.map((h, i) => h + (targets[i] - h) * 0.15);
+      const bw = canvas.width / BARS;
+      heights.forEach((bh, i) => {
+        const x = i * bw + bw * 0.15;
+        const w = bw * 0.7;
+        const y = (canvas.height - bh) / 2;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, bh, w / 2);
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.globalAlpha = 0.85;
+        ctx.fill();
+      });
+      animId = requestAnimationFrame(draw);
+    }
+    draw();
+
+    window.electronAPI?.onSpeakingState((val) => {
+      isSpeaking = val;
+      document.getElementById('label').textContent = val ? 'boomer is speaking…' : 'listening…';
+    });
+
+    document.getElementById('end-btn').addEventListener('click', () => {
+      window.electronAPI?.endSession();
+    });
+  </script>
+</body>
+</html>

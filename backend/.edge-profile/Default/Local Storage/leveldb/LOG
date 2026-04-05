@@ -1,0 +1,10 @@
+2026/03/25-15:44:13.130 8580 Reusing MANIFEST C:\Users\amand\Hackathon\Boomer Browse\backend\.edge-profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/03/25-15:44:13.138 8580 Recovering log #3
+2026/03/25-15:44:13.139 8580 Level-0 table #3: started
+2026/03/25-15:44:13.145 8580 Level-0 table #3: 38156 bytes OK
+2026/03/25-15:44:13.146 8580 Recovering log #4
+2026/03/25-15:44:13.146 8580 Level-0 table #4: started
+2026/03/25-15:44:13.154 8580 Level-0 table #4: 55415 bytes OK
+2026/03/25-15:44:13.159 8580 Delete type=0 #3
+2026/03/25-15:44:13.159 8580 Delete type=0 #4
+2026/03/25-15:44:13.159 8580 Delete type=2 #5
