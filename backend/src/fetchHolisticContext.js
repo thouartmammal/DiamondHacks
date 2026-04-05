@@ -1,14 +1,59 @@
+import path from "path";
+import { readFile } from "fs/promises";
+import { fileURLToPath } from "url";
 import { listVisits, normalizeHostFromUrl, isSearchEngineHost } from "./activityStore.js";
 import { buildCognitiveSnapshotWithDrift } from "./cognitiveSnapshot.js";
 import { getMetrics, getStateSummary } from "./memoryStore.js";
 import { getPhysicalActivityDashboard } from "./physicalActivityStore.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const EVIDENCE_BRIEF_PATH = path.join(__dirname, "..", "data", "perception-evidence-brief.txt");
+
+/** @type {Promise<string> | null} */
+let evidenceBriefLoadPromise = null;
+
+async function loadEvidenceBrief() {
+  if (evidenceBriefLoadPromise == null) {
+    evidenceBriefLoadPromise = readFile(EVIDENCE_BRIEF_PATH, "utf8").catch(() => "");
+  }
+  return evidenceBriefLoadPromise;
+}
+
 const TAG_RE = /\[\[(MEMORY|BROWSER|DRIFT|NOTE)\]\]\s*/gi;
+
+/**
+ * Perception is prompted to end [[NOTE]] with: `Support intensity: Low|Moderate|Elevated` (non-diagnostic).
+ * @param {string} text
+ * @returns {{ level: "low" | "moderate" | "elevated" | null, label: string }}
+ */
+export function extractSupportIntensity(text) {
+  const m = String(text || "").match(/Support intensity:\s*(Low|Moderate|Elevated)\b/i);
+  if (!m) return { level: null, label: "" };
+  const cap = m[1];
+  const low = cap.toLowerCase();
+  const level = low === "low" ? "low" : low === "elevated" ? "elevated" : "moderate";
+  const label = cap.charAt(0).toUpperCase() + cap.slice(1).toLowerCase();
+  return { level, label };
+}
+
+/** Remove the mandatory Support intensity line from NOTE so the card does not repeat it. */
+function stripSupportIntensityFromNote(note) {
+  return String(note || "")
+    .split("\n")
+    .filter((line) => !/^\s*Support intensity:\s*(Low|Moderate|Elevated)\b/i.test(line))
+    .join("\n")
+    .trim();
+}
 
 /**
  * Parse ASI:One reply into four labeled sections (fallback: all text in `note`).
  * @param {string} text
- * @returns {{ sections: { memory: string, browser: string, drift: string, note: string }, full: string, unparsed?: boolean }}
+ * @returns {{
+ *   sections: { memory: string, browser: string, drift: string, note: string },
+ *   full: string,
+ *   unparsed?: boolean,
+ *   supportIntensity?: "low" | "moderate" | "elevated" | null
+ * }}
  */
 export function parseFetchInsightSections(text) {
   const full = typeof text === "string" ? text : "";
@@ -19,13 +64,15 @@ export function parseFetchInsightSections(text) {
     note: "",
   };
   if (!full.trim()) {
-    return { sections, full, unparsed: true };
+    return { sections, full, unparsed: true, supportIntensity: null };
   }
 
   const parts = full.split(TAG_RE);
   if (parts.length < 3) {
     sections.note = full.trim();
-    return { sections, full, unparsed: true };
+    const { level } = extractSupportIntensity(sections.note + "\n" + full);
+    sections.note = stripSupportIntensityFromNote(sections.note);
+    return { sections, full, unparsed: true, supportIntensity: level };
   }
 
   for (let i = 1; i < parts.length; i += 2) {
@@ -38,10 +85,13 @@ export function parseFetchInsightSections(text) {
   }
 
   const any = sections.memory || sections.browser || sections.drift;
+  const { level } = extractSupportIntensity(`${sections.note}\n${full}`);
+  sections.note = stripSupportIntensityFromNote(sections.note);
+
   if (!any && sections.note) {
-    return { sections, full, unparsed: true };
+    return { sections, full, unparsed: true, supportIntensity: level };
   }
-  return { sections, full };
+  return { sections, full, supportIntensity: level };
 }
 
 /** Passive browser-behavior summary from visits (no keystroke / tab timing yet). */
@@ -115,16 +165,23 @@ export async function buildPhysicalWellnessContext() {
  */
 export async function buildHolisticCognitiveSnapshot({ windowHours = 24 } = {}) {
   const wh = Math.max(1, Math.min(168, Number(windowHours) || 24));
-  const [bundle, memoryContext, browserContext, physicalContext] = await Promise.all([
+  const [bundle, memoryContext, browserContext, physicalContext, evidenceBrief] = await Promise.all([
     buildCognitiveSnapshotWithDrift({ windowHours: wh }),
     buildMemoryAgentContext(),
     buildBrowserBehaviorContext({ windowHours: wh }),
     buildPhysicalWellnessContext(),
+    loadEvidenceBrief(),
   ]);
+
+  const brief = (evidenceBrief || "").trim();
+  const memCore = (memoryContext || "").trim();
+  const memory_context = brief
+    ? `${memCore}\n\n--- Evidence & research themes (curated; ground judgments with telemetry) ---\n\n${brief}`
+    : memCore;
 
   const snapshot = {
     ...bundle.snapshot,
-    memory_context: memoryContext,
+    memory_context,
     browser_context: browserContext,
     physical_context: physicalContext,
   };
@@ -140,6 +197,13 @@ export async function buildHolisticCognitiveSnapshot({ windowHours = 24 } = {}) 
 let holisticCache = null;
 
 /**
+ * Latest successful holistic payload for caregiver email (not TTL-evicted; updated on each setHolisticCache).
+ * Survives short-TTL expiry of {@link getHolisticCache}.
+ * @type {{ at: number, payload: object } | null}
+ */
+let holisticCacheLastForReport = null;
+
+/**
  * Short TTL cache so multiple dashboards querying the same holistic insight do not triple-bill ASI.
  * @param {number} ttlMs
  */
@@ -153,5 +217,12 @@ export function getHolisticCache(ttlMs = 90000) {
 }
 
 export function setHolisticCache(payload) {
-  holisticCache = { at: Date.now(), payload };
+  const entry = { at: Date.now(), payload };
+  holisticCache = entry;
+  holisticCacheLastForReport = entry;
+}
+
+/** @returns {{ at: number, payload: object } | null} */
+export function peekHolisticCacheForReport() {
+  return holisticCacheLastForReport;
 }

@@ -641,9 +641,9 @@ export function PhysicalActivityDashboard() {
           disabled={!unlocked || reportBusy}
           title={!unlocked ? t("wellness.lockedHint") : undefined}
           className={cn(
-            "group flex w-full min-w-[12.5rem] flex-col items-center rounded-2xl border-2 border-transparent px-3 py-3 outline-none transition sm:min-w-[14rem] sm:px-4 sm:py-4",
+            "group flex w-full min-w-[12.5rem] flex-col items-center rounded-2xl border-2 border-transparent bg-transparent px-3 py-3 shadow-none outline-none backdrop-blur-none transition sm:min-w-[14rem] sm:px-4 sm:py-4",
             unlocked
-              ? "border-cyan-400/25 bg-slate-950/35 shadow-lg shadow-black/20 backdrop-blur-sm hover:border-cyan-400/40 hover:bg-slate-950/45 hover:opacity-95"
+              ? "hover:border-cyan-300/35 hover:opacity-95 focus-visible:border-cyan-400/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300/60"
               : "cursor-not-allowed opacity-45",
             reportBusy && "opacity-60",
           )}

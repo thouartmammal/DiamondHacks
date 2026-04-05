@@ -56,7 +56,7 @@ export function WellnessHumanSilhouette({
         className,
       )}
     >
-      <p className="mb-1 max-w-md px-3 text-center text-sm font-normal leading-snug text-stone-600 sm:mb-2 sm:text-[0.95rem]">
+      <p className="mb-1 max-w-md px-3 text-center text-sm font-normal leading-snug text-slate-100 sm:mb-2 sm:text-[0.95rem]">
         Tap the <span className="font-medium text-teal-300">head</span> or{" "}
         <span className="font-medium text-rose-300">chest</span> to open your charts
       </p>
@@ -86,13 +86,13 @@ export function WellnessHumanSilhouette({
           />
 
           <Hotspot
-            className="absolute left-1/2 top-[6%] z-[2] -translate-x-1/2"
+            className="absolute left-[45%] top-[6%] z-[2] -translate-x-1/2"
             onClick={onBrainClick}
             label="Open mood and memory difficulty chart"
             title="Mood & memory difficulty"
           />
           <Hotspot
-            className="absolute left-1/2 top-[21%] z-[2] -translate-x-1/2"
+            className="absolute left-[48%] top-[21%] z-[2] -translate-x-1/2"
             onClick={onHeartClick}
             label="Open memory slip frequency chart"
             title="Memory slip — frequency over time"

@@ -467,6 +467,37 @@
     0 8px 32px rgba(5, 20, 30, 0.2);
 }
 
+/* Dashboard tile shapes — smart-home / glass bento (varied radii, not uniform rectangles) */
+.dashboard-glass-panel.dashboard-shape-squircle {
+  border-radius: 1.75rem;
+}
+
+.dashboard-glass-panel.dashboard-shape-squircle-lg {
+  border-radius: 2.25rem;
+}
+
+/* Asymmetric corners: each modifier reads top-left, top-right, bottom-right, bottom-left */
+.dashboard-glass-panel.dashboard-shape-tile-a {
+  border-radius: 1.75rem 2.5rem 1.35rem 2rem;
+}
+
+.dashboard-glass-panel.dashboard-shape-tile-b {
+  border-radius: 2.35rem 1.35rem 2rem 1.65rem;
+}
+
+.dashboard-glass-panel.dashboard-shape-tile-c {
+  border-radius: 1.45rem 2.15rem 2.35rem 1.35rem;
+}
+
+.dashboard-glass-panel.dashboard-shape-tile-d {
+  border-radius: 2rem 1.55rem 1.75rem 2.4rem;
+}
+
+/* Wide “control deck” tile (thermostat / nav bar feel) */
+.dashboard-glass-panel.dashboard-shape-capsule {
+  border-radius: 2rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-glass-hover-surface {
     transition: none;
@@ -492,4 +523,58 @@
     0 4px 20px rgba(5, 20, 30, 0.2);
   backdrop-filter: blur(22px) saturate(130%);
   -webkit-backdrop-filter: blur(22px) saturate(130%);
+}
+
+/* Same as .dashboard-glass-panel body type — cards/stats, not the page h2 title */
+.font-boomer-dashboard-ui {
+  font-family:
+    "Plus Jakarta Sans",
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  font-feature-settings: "ss01" on;
+}
+
+/* Hero — cyan glow; pair with .font-boomer-dashboard-ui */
+.hero-glow-title {
+  color: #f8fafc;
+  text-shadow:
+    0 0 20px rgba(34, 211, 238, 0.7),
+    0 0 40px rgba(34, 211, 238, 0.4),
+    0 0 64px rgba(6, 182, 212, 0.22),
+    0 2px 18px rgba(0, 0, 0, 0.48);
+}
+
+.hero-glow-tagline {
+  color: #f8fafc;
+  text-shadow:
+    0 0 14px rgba(34, 211, 238, 0.6),
+    0 0 32px rgba(34, 211, 238, 0.32),
+    0 1px 14px rgba(0, 0, 0, 0.42);
+}
+
+@keyframes hero-tagline-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.6em);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-tagline-word {
+  display: inline-block;
+  opacity: 0;
+  animation: hero-tagline-word-in 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-tagline-word {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

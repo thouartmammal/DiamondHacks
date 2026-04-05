@@ -64,6 +64,11 @@ _net = (os.environ.get("BOOMER_AGENT_NETWORK") or "mainnet").strip().lower()
 AGENT_NETWORK = "testnet" if _net == "testnet" else "mainnet"
 ASI1_BASE_URL = os.environ.get("ASI1_BASE_URL", "https://api.asi1.ai/v1")
 ASI1_MODEL = os.environ.get("ASI1_MODEL", "asi1")
+# Holistic snapshots + evidence brief can be huge; ASI APIs often reject oversize requests (opaque 4xx).
+try:
+    _ASI_USER_MAX = int((os.environ.get("ASI_USER_MESSAGE_MAX_CHARS") or "95000").strip())
+except ValueError:
+    _ASI_USER_MAX = 95000
 
 # Boomer-facing models (keep in sync with query_bridge.py and drift/guardian agents).
 class SnapshotMsg(Model):
@@ -95,8 +100,15 @@ Give one or two short sentences: reassuring, concrete, no jargon. If something l
 Do not shame; offer optional next steps (e.g. take a break, verify a site)."""
 
 _SYSTEM_HOLISTIC = """You assist Boomer Browse: passive telemetry only (no questions asked of the user).
-The user message has four lenses: core window metrics, optional drift vs prior window, Memory (narrative/recall ops), Browser (visit/search patterns), Physical/wellness summary.
-Reply with exactly four blocks in this order. Each block starts with its tag on its own line, then 1–2 short sentences.
+The user message carries four lenses: Memory (narrative/recall ops), Browser (visit/search patterns), drift vs prior window, Physical/wellness. It may also include **Evidence & research themes** — curated bullets and reputable public URLs (WHO, NIH NIA, etc.) for **grounding** judgments, not for diagnosing this person.
+
+Your job is a calm synthesis — not a clinical diagnosis. **Integrate** telemetry with those research themes where helpful (e.g. variability on complex tasks, non-specificity of digital patterns, care-support framing). Prefer **evidence-informed** language over raw counts alone.
+
+**Citations discipline:** Name a paper, journal, author, year, or DOI **only** if it appears verbatim in the user message (including the evidence brief). Otherwise use broad phrases like "research on aging often…" without fabricated references.
+
+Reply with exactly four blocks in this order. Each block starts with its tag on its own line, then one or two short sentences (plain language).
+
+**Qualitative focus (critical):** In [[MEMORY]], [[BROWSER]], and [[DRIFT]], describe patterns in words — e.g. "much busier than usual", "shift toward official sites", "more scattered than your typical week". **Do not paste raw counts**, percentages, or long lists of numbers from the input. One concrete number in a block at most if truly necessary.
 
 [[MEMORY]]
 
@@ -105,8 +117,13 @@ Reply with exactly four blocks in this order. Each block starts with its tag on 
 [[DRIFT]]
 
 [[NOTE]]
+In [[NOTE]]: one short caregiver-friendly sentence, then on a **new line** exactly this pattern (pick one word for X only):
+Support intensity: X
+where X is exactly **Low**, **Moderate**, or **Elevated** — meaning how much **extra digital / routine support** the combined pattern suggests for the next few days (based only on passive app signals).
 
-Tone: reassuring, concrete, no jargon, no blame. Not a medical diagnosis."""
+Then one more line: clarify that this is **not** a dementia or Alzheimer’s assessment and does not replace a clinician.
+
+Tone throughout: reassuring, no jargon, no blame."""
 
 
 def _asi_client() -> OpenAI:
@@ -118,14 +135,65 @@ def _asi_client() -> OpenAI:
     return OpenAI(base_url=ASI1_BASE_URL, api_key=key)
 
 
+def _sanitize_utf8_for_asi_api(text: str) -> str:
+    """Replace lone surrogates and other unencodable chars so JSON/httpx can UTF-8 encode the body.
+
+    Browser or memory payloads occasionally contain isolated surrogate code points (e.g. \\udc9d),
+    which raise UnicodeEncodeError when the OpenAI client serializes messages.
+    """
+    if not text:
+        return text
+    return text.encode("utf-8", errors="replace").decode("utf-8")
+
+
+def _truncate_user_message_for_asi(text: str, logger) -> str:
+    if len(text) <= _ASI_USER_MAX:
+        return text
+    tail = "\n\n[... message truncated for ASI:One size limits; reduce memory_context / BOOMER_RESEARCH_BRIEF / loved-one photo payload on Node. ASI_USER_MESSAGE_MAX_CHARS=%s ...]" % (
+        _ASI_USER_MAX,
+    )
+    cut = _ASI_USER_MAX - len(tail)
+    if cut < 1000:
+        cut = 1000
+    out = text[:cut] + tail
+    if logger is not None:
+        logger.warning(
+            "ASI user message truncated: %s chars -> %s (cap ASI_USER_MESSAGE_MAX_CHARS)",
+            len(text),
+            len(out),
+        )
+    return out
+
+
+def _asi_error_detail(exc: BaseException) -> str:
+    parts = [str(exc)]
+    try:
+        b = getattr(exc, "body", None)
+        if b is not None:
+            parts.append(repr(b)[:800])
+    except Exception:
+        pass
+    try:
+        r = getattr(exc, "response", None)
+        if r is not None and hasattr(r, "text"):
+            parts.append(getattr(r, "text", "")[:400])
+    except Exception:
+        pass
+    return " | ".join(parts)[:2500]
+
+
 def _call_asi1(
     user_text: str,
     system_prompt: str | None = None,
     logger=None,
 ) -> str:
-    system = system_prompt or _SYSTEM_BOOMER
+    system = _sanitize_utf8_for_asi_api(system_prompt or _SYSTEM_BOOMER)
+    user_text = _sanitize_utf8_for_asi_api(
+        _truncate_user_message_for_asi(user_text, logger)
+    )
     fallback = (
-        "Something went wrong talking to ASI:One. Check ASI1_API_KEY and try again."
+        "Something went wrong talking to ASI:One. Check Agent secrets: ASI1_API_KEY, ASI1_BASE_URL, "
+        "ASI1_MODEL; see agent logs for the API error detail. If the message was huge, try ASI_USER_MESSAGE_MAX_CHARS."
     )
     try:
         client = _asi_client()
@@ -137,10 +205,11 @@ def _call_asi1(
             ],
             max_tokens=2048,
         )
-        return str(r.choices[0].message.content)
-    except Exception:
+        return _sanitize_utf8_for_asi_api(str(r.choices[0].message.content or ""))
+    except Exception as e:
         if logger is not None:
-            logger.exception("ASI1 chat.completions failed")
+            # Single string: Agentverse log UI often drops %-format extra args.
+            logger.error("ASI1 chat.completions failed — " + _asi_error_detail(e))
         return fallback
 
 
@@ -277,6 +346,14 @@ def _snapshot_user_text(req: SnapshotMsg) -> str:
     pc = (req.physical_context or "").strip()
     if pc:
         base += "\n--- Physical / wellness dashboard lens ---\n" + pc + "\n"
+    # Hosted/local: optional operator-supplied brief (pubmed excerpts, org policy, etc.)
+    extra = (os.environ.get("BOOMER_RESEARCH_BRIEF") or "").strip()
+    if extra:
+        base += (
+            "\n--- Extra research / policy brief (operator-supplied via BOOMER_RESEARCH_BRIEF) ---\n"
+            + extra
+            + "\n"
+        )
     return base
 
 

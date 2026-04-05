@@ -1,6 +1,8 @@
 # Boomer Drift — Agentverse hosted agent (paste into Build → agent.py)
 # Agent secrets (Agentverse):
-#   PERCEPTION_AGENT_ADDRESS = Perception (ASI:One) agent1q…  → Drift → Perception → reply to caller
+#   PERCEPTION_AGENT_ADDRESS = Perception (ASI:One) agent1q…  → Drift → Perception → reply (or fallback if Memory fails)
+#   MEMORY_AGENT_ADDRESS     = optional Boomer Memory agent1q… → Drift → Memory → Perception (recommended for fuller [[MEMORY]])
+#   BOOMER_MEMORY_TIMEOUT_SEC   = optional, default 45 (seconds) — wait for Memory hop; keep under hosted limit with Perception inside Memory.
 #   BOOMER_PERCEPTION_TIMEOUT_SEC = optional, default 42 (seconds). Hosted Agentverse often 408s if the
 #       whole handler waits too long for ASI:One; keep this *below* your platform submit limit (~60s).
 #   GUARDIAN_AGENT_ADDRESS = Guardian agent1q…                → used only if PERCEPTION_AGENT_ADDRESS is unset
@@ -175,6 +177,53 @@ async def on_snapshot(ctx: Context, sender: str, msg: SnapshotMsg) -> None:
 
     if perception:
         forward = _enriched_snapshot_for_perception(msg, dr.drift_score, reasons_str)
+
+        memory_addr = (os.getenv("MEMORY_AGENT_ADDRESS") or "").strip()
+        if memory_addr == ctx.agent.address:
+            ctx.logger.error("MEMORY_AGENT_ADDRESS must be Memory agent, not Drift")
+            await ctx.send(
+                sender,
+                CognitiveOut(
+                    mode="standard",
+                    user_message="Misconfigured MEMORY_AGENT_ADDRESS (cannot equal Drift address).",
+                    drift_score=dr.drift_score,
+                    severity="none",
+                    chain="drift-config-error",
+                ),
+            )
+            return
+        if memory_addr and memory_addr == perception:
+            ctx.logger.error("MEMORY_AGENT_ADDRESS must be Memory agent, not Perception")
+            await ctx.send(
+                sender,
+                CognitiveOut(
+                    mode="standard",
+                    user_message="Misconfigured MEMORY_AGENT_ADDRESS (cannot equal PERCEPTION_AGENT_ADDRESS).",
+                    drift_score=dr.drift_score,
+                    severity="none",
+                    chain="drift-config-error",
+                ),
+            )
+            return
+
+        if memory_addr:
+            m_timeout = _int_env("BOOMER_MEMORY_TIMEOUT_SEC", 45, 15, 115)
+            ctx.logger.info(f"Boomer Drift: calling Memory (timeout {m_timeout}s)")
+            m_reply, m_status = await ctx.send_and_receive(
+                memory_addr,
+                forward,
+                response_type=CognitiveOut,
+                timeout=m_timeout,
+                sync=True,
+            )
+            if isinstance(m_reply, CognitiveOut):
+                ctx.logger.info("Boomer Drift: forwarding Memory→Perception CognitiveOut to caller")
+                await ctx.send(sender, m_reply)
+                return
+            ctx.logger.warning(
+                f"Memory hop failed ({m_status}); falling back to Perception without Memory synthesis",
+            )
+
         p_timeout = _int_env("BOOMER_PERCEPTION_TIMEOUT_SEC", 42, 15, 115)
         ctx.logger.info(f"Boomer Drift: calling Perception (timeout {p_timeout}s)")
         p_reply, p_status = await ctx.send_and_receive(
@@ -228,9 +277,9 @@ async def on_snapshot(ctx: Context, sender: str, msg: SnapshotMsg) -> None:
                 mode=mode,
                 user_message=(
                     f"Drift-only (hosted): score {dr.drift_score:.2f}; signals: {reasons_str}. "
-                    "No ASI tags yet — add Agent secret PERCEPTION_AGENT_ADDRESS on this Drift agent "
-                    "(your Perception agent1q…) for Drift→Perception and [[MEMORY]]/[[BROWSER]]/… blocks. "
-                    "Or set GUARDIAN_AGENT_ADDRESS for the template Guardian chain."
+                    "No ASI tags yet — add PERCEPTION_AGENT_ADDRESS on Drift for Drift→Perception, "
+                    "or MEMORY_AGENT_ADDRESS + PERCEPTION_AGENT_ADDRESS for Drift→Memory→Perception. "
+                    "Or set GUARDIAN_AGENT_ADDRESS for the Guardian chain."
                 ),
                 drift_score=dr.drift_score,
                 severity=sev,

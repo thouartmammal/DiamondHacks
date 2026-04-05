@@ -7,8 +7,12 @@ export const translations: Record<Locale, Record<string, string>> = {
     "lang.switchToEn": "English",
     "lang.label": "Language",
 
+    "app.helpButtonAria": "Help",
+    "app.menuButtonAria": "Main menu",
     "app.helpBlurb":
       "Boomer Browse is your friendly browser assistant that creates an adaptive browsing experience based on your interactions with the device while guiding you through complex tasks with your browser!",
+    "app.heroTitle": "Boomer Browse",
+    "app.heroTagline": "Inspired by Harry Potter's Pensieve, your second brain",
     "app.lovedOnes": "see your loved ones",
     "app.dailyReminders": "daily reminders",
     "app.closePanel": "close panel",
@@ -110,8 +114,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     "lang.switchToEn": "English",
     "lang.label": "Ngôn ngữ",
 
+    "app.helpButtonAria": "Trợ giúp",
+    "app.menuButtonAria": "Menu chính",
     "app.helpBlurb":
       "Boomer Browse là trợ lý duyệt web thân thiện, tạo trải nghiệm phù hợp với cách bạn dùng máy và hướng dẫn bạn qua các thao tác phức tạp trên trình duyệt!",
+    "app.heroTitle": "Boomer Browse",
+    "app.heroTagline":
+      "Lấy cảm hứng từ Bể Pensieve (Harry Potter) — bộ não thứ hai của bạn",
     "app.lovedOnes": "người thân yêu",
     "app.dailyReminders": "nhắc nhở mỗi ngày",
     "app.closePanel": "đóng bảng",

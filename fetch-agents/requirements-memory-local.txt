@@ -1,0 +1,4 @@
+# Local Boomer Memory agent (ASI:One synthesis + forward to Perception). Python 3.10–3.13.
+uagents==0.24
+openai
+python-dotenv

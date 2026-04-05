@@ -58,6 +58,10 @@ You should get JSON with `"ok": true` and an ASI:One-generated `user_message`.
 | `BOOMER_AGENT_NETWORK` | `mainnet` (default) or `testnet` if you lack mainnet funds for Almanac |
 | `ASI1_BASE_URL` | Default `https://api.asi1.ai/v1` |
 | `ASI1_MODEL` | Default `asi1` |
+| `ASI_USER_MESSAGE_MAX_CHARS` | Optional. Default **95000**. User prompt is truncated beyond this to avoid ASI errors on huge holistic payloads (memory + evidence brief + `BOOMER_RESEARCH_BRIEF`). |
+| `BOOMER_RESEARCH_BRIEF` | Optional. Long text / pasted abstract snippets appended to the user message after all lenses (hosted Agent secret). Boomer Node also injects `backend/data/perception-evidence-brief.txt` into `memory_context` on each holistic build. |
+
+**Log shows `ASI1 chat.completions failed`:** Check the **next log line** for the API detail (401 = bad/missing `ASI1_API_KEY`, 400/413 = payload/model). On Agentverse set **Agent Secrets** `ASI1_API_KEY` (and optional `ASI1_BASE_URL` / `ASI1_MODEL` if your ASI tenant differs).
 
 ### Link mailbox (first time — fixes 401 / “mailbox not found”)
 
@@ -77,18 +81,30 @@ Once registered, keep **`BOOMER_MAILBOX="true"`** and use [ASI:One Chat](https:/
 
 ---
 
-## 1. Hosted chain: Drift → Perception (recommended)
+## 1. Hosted chain: Drift → Perception (or Drift → Memory → Perception)
 
 **Boomer Node** sets **`AGENTVERSE_PERCEPTION_ADDRESS`** to the **Drift** agent’s `agent1q…` (entry). On **Agentverse**, create secrets on the **Drift** agent:
 
 | Secret | Value |
 |--------|--------|
-| **`PERCEPTION_AGENT_ADDRESS`** | Hosted or local **Perception** agent `agent1q…` (ASI:One). |
-| **`BOOMER_PERCEPTION_TIMEOUT_SEC`** | Optional. Default **42**. Max time Drift waits for Perception/ASI; must stay **under** Agentverse’s hosted submit limit (~60s) or you get **408** `Timed out waiting for agent response`. |
+| **`PERCEPTION_AGENT_ADDRESS`** | **Perception** agent `agent1q…` (ASI:One). Required for Perception fallback if **Memory** is enabled; used directly when Memory is **not** set. |
+| **`MEMORY_AGENT_ADDRESS`** | Optional. **Boomer Memory** agent `agent1q…` (`fetch-agents/memory/agent.py`). When set: Drift → Memory (narrative synthesis) → Perception. |
+| **`BOOMER_MEMORY_TIMEOUT_SEC`** | Optional. Default **45**. Max time Drift waits for the Memory hop (Memory internally calls Perception with its own timeout). |
+| **`BOOMER_PERCEPTION_TIMEOUT_SEC`** | Optional. Default **42**. Max time Drift waits for Perception when Memory is **off**, or after Memory fails. Keep total chain **under** Agentverse’s hosted submit limit (~60s) or you get **408**. |
 
-Flow: `query_bridge` sends **`SnapshotMsg`** → **Drift** (scores drift, appends a short hosted-drift line to `drift_context`) → **`send_and_receive`** → **Perception** → **`CognitiveOut`** back through Drift to the bridge. No Node change beyond pointing the env at Drift.
+**Memory agent secrets** (on the Memory agent, not Drift):
 
-**408 / dispenser:** If stderr shows `[dispenser]: … 408 … Timed out waiting for agent response`, the **Drift** handler did not finish before hosting cut it off—usually Perception/ASI was slow. Lower **`BOOMER_PERCEPTION_TIMEOUT_SEC`** on Drift (e.g. **35**), speed up ASI, ensure **both** agents show **Running**, or temporarily set **`AGENTVERSE_PERCEPTION_ADDRESS`** to **Perception** only (skip Drift) to confirm the rest of the stack.
+| Secret | Value |
+|--------|--------|
+| **`ASI1_API_KEY`** | ASI:One key (Memory-only system prompt; enriches `memory_context` before Perception). |
+| **`PERCEPTION_AGENT_ADDRESS`** | Same Perception `agent1q…` as in the Drift row. |
+| **`BOOMER_PERCEPTION_TIMEOUT_SEC`** | Optional. Default **42**. Wait for Perception after Memory synthesis. |
+
+Flow without Memory: `SnapshotMsg` → **Drift** (enriches `drift_context`) → **Perception** → **`CognitiveOut`** → caller.
+
+Flow with Memory: **Drift** → **Memory** (ASI synthesis appended to `memory_context`; **does not** embed raw drift metrics in the Memory ASI prompt) → **Perception** → **`CognitiveOut`** → Drift → caller.
+
+**408 / dispenser:** The chain is deeper with Memory; reduce timeouts, ensure all three agents are **Running**, or temporarily unset **`MEMORY_AGENT_ADDRESS`** to test **Drift → Perception** only.
 
 **`Message must be sent from verified agent address`:** Hosted runtimes often register `SnapshotMsg` on the **signed** handler path, which **rejects** `user…` senders from the bridge. The repo **`query_bridge.py` defaults to a signing `Identity`** (ephemeral agent + signed envelope), which matches that path. To force the old behavior (user sender), set **`BOOMER_QUERY_USER_SENDER=1`** (works best when the target agent uses **`allow_unverified=True`**). Optionally set **`BOOMER_QUERY_AGENT_SEED`** for a stable bridge sender address.
 
@@ -98,7 +114,7 @@ If **`PERCEPTION_AGENT_ADDRESS`** is unset, Drift falls back to **Guardian** (`G
 
 **Drift** + **Guardian** (`drift/agent.py`, `guardian/agent.py`) without Perception: leave **`PERCEPTION_AGENT_ADDRESS`** unset; set **`GUARDIAN_AGENT_ADDRESS`** on Drift.
 
-The checked-in **`perception/agent.py`** is the **local** ASI:One variant (chat protocol + `on_query` for Boomer). Hosting Perception on Agentverse **Build** needs whatever dependency list Agentverse expects for **`openai`** and secrets for **`ASI1_API_KEY`** (see ASI:One docs).
+The checked-in **`perception/agent.py`** is the **local** ASI:One variant (chat protocol + `on_query` for Boomer). Hosting Perception on Agentverse **Build** needs whatever dependency list Agentverse expects for **`openai`** and secrets for **`ASI1_API_KEY`** (see ASI:One docs). Redeploy Perception when the holistic prompt changes (e.g. qualitative blocks + **Support intensity** line in `[[NOTE]]`) so the dashboard can parse `supportIntensity`.
 
 **Hosted note:** `perception/agent.py` skips loading `backend/.env` when `__file__` is missing (Agentverse runner). Set **`ASI1_API_KEY`** as **Agent Secrets**, not files.
 
@@ -108,8 +124,8 @@ Earlier troubleshooting notes (hosted submit `500`, digest alignment) apply to h
 
 ## Model contract (keep in sync)
 
-`SnapshotMsg` (optional `drift_context`, `memory_context`, `browser_context`, `physical_context`) and `CognitiveOut` **must match** across `perception/agent.py`, `perception/query_bridge.py`, `drift/agent.py`, and `guardian/agent.py`.  
-After changing them, restart the local perception agent so **schema digests** match the bridge.
+`SnapshotMsg` (optional `drift_context`, `memory_context`, `browser_context`, `physical_context`) and `CognitiveOut` **must match** across `perception/agent.py`, `perception/query_bridge.py`, `drift/agent.py`, `memory/agent.py`, and `guardian/agent.py`.  
+After changing them, restart the local agents so **schema digests** match the bridge.
 
 Boomer’s Node server builds those contexts in `backend/src/fetchHolisticContext.js` and sends one holistic envelope per `/cognitive/agentverse` call (short TTL cache via `FETCH_HOLISTIC_CACHE_MS`, default 90s).
 

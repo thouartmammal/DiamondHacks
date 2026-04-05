@@ -45,6 +45,27 @@ import { openRoutineFlowInBrowser } from "../lib/routineFlowClient";
 import { runBrowserAutomationStream } from "../lib/browserAutomationStream";
 import { useTranslation } from "../i18n/LanguageContext";
 
+const HERO_TAGLINE_STAGGER_S = 0.075;
+
+function HeroTaglineWords({ text }: { text: string }) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return (
+    <p className="font-boomer-dashboard-ui hero-glow-tagline mx-auto mt-3 max-w-md text-lg font-bold leading-tight tracking-tight sm:mt-4 sm:max-w-lg sm:text-xl md:text-2xl">
+      {words.map((word, i) => (
+        <React.Fragment key={`${i}-${word}`}>
+          <span
+            className="hero-tagline-word"
+            style={{ animationDelay: `${i * HERO_TAGLINE_STAGGER_S}s` }}
+          >
+            {word}
+          </span>
+          {i < words.length - 1 ? " " : null}
+        </React.Fragment>
+      ))}
+    </p>
+  );
+}
+
 export default function App() {
   const { t, locale, setLocale } = useTranslation();
   const vapiRef = useRef<Vapi | null>(null);
@@ -467,30 +488,33 @@ export default function App() {
           🇻🇳
         </button>
       </div>
-      <div className="absolute top-8 left-8 z-20 flex flex-col gap-3">
+      <div
+        className="pointer-events-auto absolute z-20 flex flex-col items-center rounded-full border border-white/20 bg-slate-950/60 px-2 py-2 shadow-[0_8px_42px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+        style={{
+          top: "max(2rem, env(safe-area-inset-top, 0px))",
+          left: "max(2rem, env(safe-area-inset-left, 0px))",
+        }}
+        role="toolbar"
+        aria-label="Help and menu"
+      >
         <button
+          type="button"
           onMouseEnter={() => setShowHelp(true)}
           onMouseLeave={() => setShowHelp(false)}
-          className="transition-all duration-200 mb-1"
-          style={{
-            width: "90px", height: "90px",
-            border: "3px solid rgba(147, 197, 253, 0.95)", borderRadius: "50%",
-            backgroundColor: "rgba(248, 251, 255, 0.35)", display: "flex",
-            alignItems: "center", justifyContent: "center",
-            fontSize: "2.5rem", fontWeight: 700, color: "#2563eb", position: "relative",
-            backdropFilter: "blur(8px)",
-            boxShadow: "0 4px 24px rgba(59, 130, 246, 0.15)",
-          }}
+          className="relative flex h-[52px] w-[52px] shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-[1.65rem] font-bold leading-none text-sky-400 transition-[background-color,box-shadow] duration-200 hover:bg-white/10 hover:shadow-[0_0_22px_rgba(56,189,248,0.4)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400/80"
+          aria-label={t("app.helpButtonAria")}
         >
           ?
           {showHelp && (
             <div
-              className="absolute left-20 top-0 p-4 rounded-lg shadow-lg"
+              className="absolute left-[calc(100%+0.75rem)] top-1/2 z-30 w-[min(380px,calc(100vw-5rem))] max-w-[85vw] -translate-y-1/2 rounded-xl p-4 text-left shadow-2xl"
               style={{
-                backgroundColor: "rgba(248, 251, 255, 0.95)", border: "2px solid #93c5fd",
-                color: "#1e3a5f", fontSize: "1.2rem", fontWeight: 500, width: "380px",
-                boxShadow: "0 12px 40px rgba(59, 130, 246, 0.18)",
-                backdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                backgroundColor: "rgba(15, 23, 42, 0.92)",
+                color: "#e2e8f0",
+                fontSize: "1.05rem",
+                fontWeight: 500,
+                backdropFilter: "blur(14px)",
               }}
             >
               {t("app.helpBlurb")}
@@ -498,20 +522,14 @@ export default function App() {
           )}
         </button>
 
+        <div className="my-1 h-px w-9 shrink-0 bg-white/18" aria-hidden />
+
         <button
+          type="button"
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="transition-all duration-200"
-          style={{
-            width: "90px", height: "90px",
-            border: "3px solid rgba(147, 197, 253, 0.95)", borderRadius: "16px",
-            backgroundColor: "rgba(248, 251, 255, 0.3)", display: "flex",
-            alignItems: "center", justifyContent: "center",
-            fontSize: "2rem", color: "#2563eb",
-            backdropFilter: "blur(8px)",
-            boxShadow: "0 4px 20px rgba(59, 130, 246, 0.12)",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#3b82f6"; e.currentTarget.style.color = "#f8fbff"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "rgba(248, 251, 255, 0.3)"; e.currentTarget.style.color = "#2563eb"; }}
+          className="flex h-[52px] w-[52px] shrink-0 cursor-pointer items-center justify-center rounded-2xl border-0 bg-transparent text-2xl leading-none text-sky-400 transition-[background-color,box-shadow] duration-200 hover:bg-white/10 hover:shadow-[0_0_22px_rgba(56,189,248,0.4)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400/80"
+          aria-expanded={sidebarOpen}
+          aria-label={t("app.menuButtonAria")}
         >
           ☰
         </button>
@@ -594,7 +612,12 @@ export default function App() {
       {/* Main Content — one full viewport snap panel (must snap-align like dashboards or mandatory snap pulls you back) */}
       <div className="relative mx-auto flex h-dvh max-h-dvh w-full shrink-0 snap-start snap-always flex-col justify-center overflow-x-hidden px-8 text-center sm:px-12">
         <div className="mx-auto flex max-w-6xl w-full flex-col justify-center">
-        <div className="mb-8 flex justify-center"></div>
+        <header className="relative z-[1] -mt-6 mb-5 shrink-0 px-2 text-center sm:-mt-10 sm:mb-6 md:-mt-14">
+          <h1 className="font-boomer-dashboard-ui hero-glow-title mb-1 text-2xl font-bold leading-tight tracking-tight sm:text-3xl md:text-4xl">
+            {t("app.heroTitle")}
+          </h1>
+          <HeroTaglineWords key={locale} text={t("app.heroTagline")} />
+        </header>
 
         {/* Swipe hint */}
         {!uiVisible && (

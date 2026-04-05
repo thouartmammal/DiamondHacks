@@ -536,10 +536,7 @@ export function LovedOnesPage({ onBack }: Props) {
       const a = gp(p.id), b = gp(YOU_ID);
       if (a && b) edges.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, key: `sp-${p.id}`, isSpouse: true });
     }
-    if (["Sibling","Brother","Sister"].includes(p.relationship)) {
-      const a = gp(p.id), b = gp(YOU_ID);
-      if (a && b) edges.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, key: `sib-${p.id}`, isSpouse: false });
-    }
+    /* No sibling–sibling edges: only parent→child (via parentIds above) and spouse links. */
   }
 
   const selectedPerson = selected ? people.find(p => p.id === selected) ?? null : null;

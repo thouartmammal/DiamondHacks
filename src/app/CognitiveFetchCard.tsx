@@ -57,6 +57,8 @@ type CognitiveResponse = {
   cognitiveAgentConfigured?: boolean;
   sections?: InsightSections | null;
   insightUnparsed?: boolean | null;
+  /** Derived from Perception [[NOTE]] line "Support intensity: Low|Moderate|Elevated" — not clinical. */
+  supportIntensity?: "low" | "moderate" | "elevated" | null;
   cached?: boolean;
 };
 
@@ -112,6 +114,22 @@ function SectionBlock({
   );
 }
 
+function supportIntensityBadgeClass(level: "low" | "moderate" | "elevated", tone: "indigo" | "rose") {
+  if (level === "low") {
+    return tone === "rose"
+      ? "border-emerald-400/35 bg-emerald-950/35 text-emerald-100"
+      : "border-emerald-400/30 bg-emerald-950/30 text-emerald-50";
+  }
+  if (level === "elevated") {
+    return tone === "rose"
+      ? "border-rose-400/45 bg-rose-950/45 text-rose-50"
+      : "border-orange-400/40 bg-orange-950/35 text-orange-50";
+  }
+  return tone === "rose"
+    ? "border-amber-400/40 bg-amber-950/35 text-amber-50"
+    : "border-amber-400/35 bg-amber-950/30 text-amber-50";
+}
+
 function InsightBody({ data, tone = "indigo" }: { data: CognitiveResponse; tone?: "indigo" | "rose" }) {
   const agentOk = data.agentverse && "ok" in data.agentverse && data.agentverse.ok;
   const message =
@@ -135,6 +153,26 @@ function InsightBody({ data, tone = "indigo" }: { data: CognitiveResponse; tone?
     <div className="flex max-h-[min(70vh,520px)] flex-col gap-3 overflow-y-auto pr-1">
       {data.cached ? (
         <p className="text-xs text-slate-500">This run was served from a short server cache (≈90s).</p>
+      ) : null}
+
+      {data.supportIntensity ? (
+        <div
+          className={cn(
+            "rounded-xl border px-3 py-2.5 text-sm",
+            supportIntensityBadgeClass(data.supportIntensity, tone),
+          )}
+          role="status"
+        >
+          <p className="font-semibold">
+            Support intensity (from passive app signals):{" "}
+            <span className="capitalize">{data.supportIntensity}</span>
+          </p>
+          <p className="mt-1 text-xs font-normal opacity-90">
+            This is not a dementia or Alzheimer’s score. It only reflects how much extra help with digital
+            tasks or routines might help for the next few days, based on browsing and memory-app patterns —
+            not a clinic visit.
+          </p>
+        </div>
       ) : null}
 
       {fetchChain === "drift-only" ? (
@@ -404,13 +442,6 @@ export function CognitiveFetchCard({
             </button>
           </div>
         </div>
-
-        {!data && !loading && !error && (
-          <p className="text-sm leading-relaxed text-slate-400">
-            Tap <strong className="text-slate-200">Run</strong> for a fresh ASI insight (opens in a window).{" "}
-            <strong className="text-slate-200">Load cached</strong> uses the server cache when available.
-          </p>
-        )}
 
         {error && (
           <p className="text-sm text-red-200" role="alert">

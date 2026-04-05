@@ -6,18 +6,28 @@ import { cn } from "./components/ui/utils";
 function GlassPanel({
   children,
   className,
+  panelShapeClass = "",
 }: {
   children: React.ReactNode;
   className?: string;
+  /** e.g. dashboard-shape-tile-b — defined in theme.css */
+  panelShapeClass?: string;
 }) {
   return (
     <div className="dashboard-glass-hover-surface will-change-transform">
-      <div className={cn("dashboard-glass-panel", className)}>{children}</div>
+      <div className={cn("dashboard-glass-panel", panelShapeClass, className)}>{children}</div>
     </div>
   );
 }
 
-export function RoutineTabsCard({ className }: { className?: string }) {
+export function RoutineTabsCard({
+  className,
+  panelShape = "default",
+}: {
+  className?: string;
+  /** Bento-style outer silhouette (set e.g. tile-b on the Boomer dashboard). */
+  panelShape?: "default" | "tile-a" | "tile-b" | "tile-c" | "squircle-lg" | "capsule";
+}) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -41,10 +51,23 @@ export function RoutineTabsCard({ className }: { className?: string }) {
     }
   }, []);
 
+  const shapeClass =
+    panelShape === "default"
+      ? ""
+      : panelShape === "tile-a"
+        ? "dashboard-shape-tile-a"
+        : panelShape === "tile-b"
+          ? "dashboard-shape-tile-b"
+          : panelShape === "tile-c"
+            ? "dashboard-shape-tile-c"
+            : panelShape === "squircle-lg"
+              ? "dashboard-shape-squircle-lg"
+              : "dashboard-shape-capsule";
+
   return (
-    <GlassPanel className={cn("p-4 sm:p-5", className)}>
+    <GlassPanel panelShapeClass={shapeClass} className={cn("p-4 sm:p-5", className)}>
       <div className="mb-3 flex flex-wrap items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-400/15 text-cyan-300 ring-1 ring-cyan-200/25">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-400/15 text-cyan-300 ring-1 ring-cyan-200/25">
           <ExternalLink className="h-6 w-6" strokeWidth={2} aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
@@ -58,7 +81,7 @@ export function RoutineTabsCard({ className }: { className?: string }) {
         type="button"
         disabled={busy}
         onClick={() => void openRoutine()}
-        className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-sky-400/40 bg-sky-950/40 px-4 py-2.5 text-sm font-semibold text-sky-100 shadow-sm transition hover:bg-sky-900/50 disabled:opacity-60 sm:w-auto"
+        className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-sky-400/40 bg-sky-950/40 px-5 py-2.5 text-sm font-semibold text-sky-100 shadow-sm transition hover:bg-sky-900/50 disabled:opacity-60 sm:w-auto"
       >
         {busy ? (
           <>
@@ -78,7 +101,7 @@ export function RoutineTabsCard({ className }: { className?: string }) {
         </p>
       )}
       {err && (
-        <p className="mt-3 rounded-lg border border-amber-400/35 bg-amber-950/25 px-3 py-2 text-sm text-amber-100" role="alert">
+        <p className="mt-3 rounded-2xl border border-amber-400/35 bg-amber-950/25 px-3 py-2 text-sm text-amber-100" role="alert">
           {err}
         </p>
       )}

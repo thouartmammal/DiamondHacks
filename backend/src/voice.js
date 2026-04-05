@@ -42,6 +42,7 @@ import {
 import {
   buildHolisticCognitiveSnapshot,
   getHolisticCache,
+  peekHolisticCacheForReport,
   parseFetchInsightSections,
   setHolisticCache,
 } from "./fetchHolisticContext.js";
@@ -410,6 +411,7 @@ app.get("/cognitive/agentverse", async (req, res) => {
       agentverse,
       sections: parsed ? parsed.sections : null,
       insightUnparsed: parsed ? Boolean(parsed.unparsed) : null,
+      supportIntensity: parsed?.supportIntensity ?? null,
       cognitiveAgentConfigured: isCognitiveAgentConfigured(),
     };
     if (ttl > 0) setHolisticCache(payload);
@@ -472,6 +474,7 @@ app.post("/cognitive/agentverse/analyze", async (req, res) => {
       agentverse,
       sections: parsed ? parsed.sections : null,
       insightUnparsed: parsed ? Boolean(parsed.unparsed) : null,
+      supportIntensity: parsed?.supportIntensity ?? null,
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "failed" });
@@ -728,6 +731,20 @@ function formatSendReportSmtpError(err) {
   return err instanceof Error ? err.message : "Failed to send report";
 }
 
+function escapeHtml(s) {
+  if (s == null || s === "") return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeAttr(s) {
+  if (s == null || s === "") return "";
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
 // Send health report to healthcare provider
 app.post("/send-report", async (req, res) => {
   const { healthcareEmail, emailFrom, emailPassword } = req.body ?? {};
@@ -745,17 +762,104 @@ app.post("/send-report", async (req, res) => {
   }
 
   try {
-    // Gather dashboard data
-    const [visits, lovedData] = await Promise.all([listVisits({ limit: 50 }), readLovedOnes()]);
+    const [visits, lovedData, dash1, dash2] = await Promise.all([
+      listVisits({ limit: 50 }),
+      readLovedOnes(),
+      getDashboard(),
+      getPhysicalActivityDashboard(),
+    ]);
+    const holisticEntry = peekHolisticCacheForReport();
     const lovedOnes = lovedData.people ?? [];
     const now = new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
+    const topSitesRows =
+      dash1.topSites?.length > 0
+        ? dash1.topSites
+            .map(
+              s =>
+                `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(s.host)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${Number(s.visitCount) || 0}</td></tr>`,
+            )
+            .join("")
+        : "<tr><td colspan='2' style='padding:8px'>No top sites in the rolling window.</td></tr>";
+
+    const nSeries = dash2.moodSeries?.length || 0;
+    const take = Math.min(7, nSeries);
+    const seriesStart = Math.max(0, nSeries - take);
+    const wellnessSeriesRows = [];
+    for (let i = seriesStart; i < nSeries; i++) {
+      const m = dash2.moodSeries[i];
+      const d = dash2.memoryLossDegreeSeries[i];
+      const f = dash2.memoryLossFrequencySeries[i];
+      if (!m) continue;
+      wellnessSeriesRows.push(
+        `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(m.date)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${typeof m.mood === "number" ? m.mood.toFixed(2) : "—"}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${d && typeof d.value === "number" ? d.value.toFixed(2) : "—"}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${f && typeof f.count === "number" ? f.count : "—"}</td></tr>`,
+      );
+    }
+    const wellnessRowsHtml =
+      wellnessSeriesRows.length > 0
+        ? wellnessSeriesRows.join("")
+        : "<tr><td colspan='4' style='padding:8px'>No series data.</td></tr>";
+
+    let holisticBlock = "";
+    if (!holisticEntry) {
+      holisticBlock = `<p style="color:#5a6b5b">No Fetch.ai holistic insight cached yet on this device. Open the cognitive insight (Fetch) card or a dashboard that loads it at least once while the voice server is running.</p>`;
+    } else {
+      const p = holisticEntry.payload;
+      const cachedWhen = new Date(holisticEntry.at).toLocaleString("en-GB", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const agent = p.agentverse;
+      const agentOk = agent && agent.ok === true;
+      const userMsg =
+        agentOk && agent.data && typeof agent.data.user_message === "string" ? agent.data.user_message : "";
+      const errMsg =
+        agent && agent.ok === false && typeof agent.error === "string" ? agent.error : "";
+      const drift = p.drift;
+      const driftBits =
+        drift && typeof drift.score === "number"
+          ? `<p style="margin:8px 0 0"><strong>Usage drift (heuristic):</strong> score ${drift.score}, severity ${escapeHtml(String(drift.severity || "—"))}</p>`
+          : "";
+      const support =
+        p.supportIntensity != null && String(p.supportIntensity).trim()
+          ? `<p style="margin:8px 0 0"><strong>Support intensity (non-diagnostic):</strong> ${escapeHtml(String(p.supportIntensity))}</p>`
+          : "";
+      const insightHtml = userMsg
+        ? `<div style="margin-top:12px;padding:14px;background:#fff;border-radius:8px;border:1px solid #e2e8e0;white-space:pre-wrap;font-size:0.95rem;line-height:1.45">${escapeHtml(userMsg).replace(/\n/g, "<br/>")}</div>`
+        : errMsg
+          ? `<p style="color:#b45309">Holistic agent did not succeed: ${escapeHtml(errMsg)}</p>`
+          : `<p style="color:#5a6b5b">No insight text in cache.</p>`;
+      const snap = p.snapshot;
+      const snapLine =
+        snap && typeof snap === "object"
+          ? `<p style="margin:8px 0 0;font-size:0.88rem;color:#64748b">Snapshot: ~${escapeHtml(String(snap.window_hours ?? "—"))}h window · visits ${escapeHtml(String(snap.visit_count ?? "—"))} · top host ${escapeHtml(String(snap.top_host || "—"))}</p>`
+          : "";
+      holisticBlock = `<p style="color:#5a6b5b;margin:0 0 8px"><strong>Holistic insight (Fetch.ai / Perception, most recent cache):</strong> ${escapeHtml(cachedWhen)}</p>${snapLine}${driftBits}${support}${insightHtml}`;
+    }
+
     const activityRows = visits.visits?.length
-      ? visits.visits.slice(0, 20).map(v => `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${new Date(v.visitedAt).toLocaleString()}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${v.title}</td><td style="padding:6px 12px;border-bottom:1px solid #eee"><a href="${v.url}">${v.url.slice(0, 60)}</a></td></tr>`).join("")
+      ? visits.visits
+          .slice(0, 20)
+          .map(v => {
+            const url = typeof v.url === "string" ? v.url : "";
+            const href = /^https?:\/\//i.test(url) ? url : "#";
+            const title = typeof v.title === "string" ? v.title : "";
+            return `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${new Date(v.visitedAt).toLocaleString()}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(title)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee"><a href="${escapeAttr(href)}">${escapeHtml(url.slice(0, 60))}</a></td></tr>`;
+          })
+          .join("")
       : "<tr><td colspan='3' style='padding:8px'>No recent activity recorded.</td></tr>";
 
     const familyRows = lovedOnes.length
-      ? lovedOnes.map(p => `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${p.name}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${p.relationship}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${p.contactSite || ""}</td></tr>`).join("")
+      ? lovedOnes
+          .map(
+            p =>
+              `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(p.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(p.relationship)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(p.contactSite || "")}</td></tr>`,
+          )
+          .join("")
       : "<tr><td colspan='3' style='padding:8px'>No family members recorded.</td></tr>";
 
     const html = `
@@ -763,6 +867,45 @@ app.post("/send-report", async (req, res) => {
         <h1 style="background:#4a5f4b;color:#e8e6dc;padding:20px 24px;margin:0;border-radius:8px 8px 0 0">Boomer Browse — Health Report</h1>
         <div style="background:#f5f4ee;padding:16px 24px;border-radius:0 0 8px 8px">
           <p style="color:#5a6b5b">Generated on <strong>${now}</strong></p>
+
+          <h2 style="color:#4a5f4b;margin-top:24px">Activity dashboard (summary)</h2>
+          <p style="color:#2d3c2e;margin:8px 0">${escapeHtml(dash1.personality || "")}</p>
+          <ul style="margin:8px 0 0;padding-left:20px;color:#2d3c2e">
+            <li>Hours in app (tracked): <strong>${dash1.hoursOnline}</strong></li>
+            <li>Time saved (estimate): <strong>${dash1.timeSavedHours} hrs</strong></li>
+            <li>Assisted browser tasks: <strong>${dash1.browserTasksCompleted}</strong></li>
+            <li>Journey: <strong>${escapeHtml(dash1.tenureLabel)}</strong>${dash1.firstSeenAt ? ` (since ${escapeHtml(String(dash1.firstSeenAt).slice(0, 10))})` : ""}</li>
+            <li>Top sites window: <strong>${dash1.topSitesWindowDays ?? 30}</strong> days</li>
+          </ul>
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;margin-top:12px">
+            <thead><tr style="background:#4a5f4b;color:#e8e6dc">
+              <th style="padding:8px 12px;text-align:left">Top site</th>
+              <th style="padding:8px 12px;text-align:left">Visits</th>
+            </tr></thead>
+            <tbody>${topSitesRows}</tbody>
+          </table>
+
+          <h2 style="color:#4a5f4b;margin-top:24px">Physical Activity / wellness dashboard</h2>
+          <p style="color:#5a6b5b;font-size:0.9rem">Estimates from browsing and in-app signals — not clinical.</p>
+          <ul style="margin:8px 0 0;padding-left:20px;color:#2d3c2e">
+            <li>Self-reported felt age: <strong>${dash2.perceivedSelfAge}</strong></li>
+            <li>Media mood (rolling): <strong>${typeof dash2.averageMediaMood === "number" ? dash2.averageMediaMood.toFixed(2) : "—"}</strong> (${escapeHtml(dash2.averageMediaMoodLabel || "")})</li>
+            <li>Content age band: <strong>${escapeHtml(dash2.mediaAgeBand || "")}</strong> — ${escapeHtml(dash2.mediaAgeDescription || "")}</li>
+          </ul>
+          <p style="margin:10px 0 4px;font-size:0.88rem;color:#64748b">Last ${take} days (mood · memory stress · slip count)</p>
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;margin-top:4px">
+            <thead><tr style="background:#4a5f4b;color:#e8e6dc">
+              <th style="padding:8px 12px;text-align:left">Date</th>
+              <th style="padding:8px 12px;text-align:left">Mood</th>
+              <th style="padding:8px 12px;text-align:left">Memory °</th>
+              <th style="padding:8px 12px;text-align:left">Slips</th>
+            </tr></thead>
+            <tbody>${wellnessRowsHtml}</tbody>
+          </table>
+          <p style="margin-top:8px;font-size:0.8rem;color:#64748b">${escapeHtml(dash2.meta?.blendNote || "")}</p>
+
+          <h2 style="color:#4a5f4b;margin-top:24px">Holistic insight (Fetch.ai)</h2>
+          ${holisticBlock}
 
           <h2 style="color:#4a5f4b;margin-top:24px">Recent Digital Activity (last 20 visits)</h2>
           <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">

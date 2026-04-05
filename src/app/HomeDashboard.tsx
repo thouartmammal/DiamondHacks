@@ -60,7 +60,7 @@ function SiteFavicon({
     return (
       <span
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-800/30 ring-1 ring-white/15",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-800/30 ring-1 ring-white/15",
           className,
         )}
       >
@@ -77,7 +77,7 @@ function SiteFavicon({
       decoding="async"
       loading="lazy"
       className={cn(
-        "h-9 w-9 shrink-0 rounded-xl bg-white/90 object-contain p-0.5 ring-1 ring-cyan-200/30",
+        "h-9 w-9 shrink-0 rounded-full bg-white/90 object-contain p-0.5 ring-1 ring-cyan-200/30",
         className,
       )}
       onError={() => setBroken(true)}
@@ -85,18 +85,34 @@ function SiteFavicon({
   );
 }
 
+const DASHBOARD_SHAPE_CLASS = {
+  default: "",
+  squircle: "dashboard-shape-squircle",
+  "squircle-lg": "dashboard-shape-squircle-lg",
+  "tile-a": "dashboard-shape-tile-a",
+  "tile-b": "dashboard-shape-tile-b",
+  "tile-c": "dashboard-shape-tile-c",
+  "tile-d": "dashboard-shape-tile-d",
+  capsule: "dashboard-shape-capsule",
+} as const;
+
+type DashboardPanelShape = keyof typeof DASHBOARD_SHAPE_CLASS;
+
 function GlassPanel({
   children,
   className,
+  shape = "default",
 }: {
   children: ReactNode;
   className?: string;
+  shape?: DashboardPanelShape;
 }) {
   return (
     <div className="dashboard-glass-hover-surface will-change-transform">
       <div
         className={cn(
           "dashboard-glass-panel",
+          DASHBOARD_SHAPE_CLASS[shape],
           className,
         )}
       >
@@ -115,7 +131,7 @@ function FlowSparkline({ subtitle }: { subtitle: string }) {
   const timeLabel = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const curve = "M 4 32 Q 36 30 60 14 T 116 6";
   return (
-    <div className="mt-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
+    <div className="mt-2 rounded-[1.35rem] border border-white/10 bg-white/5 px-3 py-2.5 backdrop-blur-sm">
       <div className="flex items-center justify-between text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-slate-400">
         <span>{t("dashboard.yourRhythm")}</span>
         <span className="tabular-nums tracking-normal text-slate-200">{timeLabel}</span>
@@ -164,14 +180,16 @@ function StatGlass({
   label,
   value,
   hint,
+  shape = "squircle",
 }: {
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   label: string;
   value: ReactNode;
   hint: string;
+  shape?: DashboardPanelShape;
 }) {
   return (
-    <GlassPanel className="p-4 sm:p-5">
+    <GlassPanel shape={shape} className="p-4 sm:p-5">
       <div className="flex items-center gap-2 text-slate-300">
         <Icon className="h-5 w-5 shrink-0 text-rose-300" strokeWidth={2} aria-hidden />
         <span className="text-xs font-bold uppercase tracking-[0.14em]">{label}</span>
@@ -258,7 +276,7 @@ export function HomeDashboard() {
         {loadError && (
           <div className="dashboard-glass-hover-surface mb-8 will-change-transform">
             <div
-              className="dashboard-glass-panel border border-red-400/35 bg-red-950/30 px-6 py-5 text-center text-red-100 shadow-lg backdrop-blur-md"
+              className="dashboard-glass-panel dashboard-shape-squircle-lg border border-red-400/35 bg-red-950/30 px-6 py-5 text-center text-red-100 shadow-lg backdrop-blur-md"
               role="alert"
             >
             <p className="mb-4 text-base leading-relaxed">{loadError}</p>
@@ -329,10 +347,10 @@ export function HomeDashboard() {
                   )}
                 >
                   <SandTimerGimbal compact />
-                  <RoutineTabsCard className="w-full max-w-lg" />
-              <GlassPanel className="w-full max-w-lg p-5">
+                  <RoutineTabsCard className="w-full max-w-lg" panelShape="tile-b" />
+              <GlassPanel shape="tile-a" className="w-full max-w-lg p-5">
                 <div className="mb-4 flex items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-800/30 text-rose-300 shadow-inner ring-1 ring-white/15">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-800/30 text-rose-300 shadow-inner ring-1 ring-white/15">
                     <Globe className="h-6 w-6" strokeWidth={2} aria-hidden />
                   </span>
                   <div>
@@ -352,9 +370,9 @@ export function HomeDashboard() {
                     {data.topSites.map((s, i) => (
                       <li
                         key={s.host}
-                        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm"
+                        className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm"
                       >
-                        <span className="flex h-7 min-w-[1.75rem] items-center justify-center rounded-lg bg-teal-400/15 text-xs font-bold text-rose-200 ring-1 ring-rose-300/30">
+                        <span className="flex h-7 min-w-[1.75rem] items-center justify-center rounded-full bg-teal-400/15 text-xs font-bold text-rose-200 ring-1 ring-rose-300/30">
                           {i + 1}
                         </span>
                         <SiteFavicon host={s.host} />
@@ -371,9 +389,9 @@ export function HomeDashboard() {
                 )}
               </GlassPanel>
 
-              <GlassPanel className="w-full max-w-lg p-5">
+              <GlassPanel shape="squircle-lg" className="w-full max-w-lg p-5">
                 <div className="mb-2 flex items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-800/30 text-teal-200 ring-1 ring-teal-300/20">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-800/30 text-teal-200 ring-1 ring-teal-300/20">
                     <Sparkles className="h-6 w-6" strokeWidth={2} aria-hidden />
                   </span>
                   <div>
@@ -391,12 +409,14 @@ export function HomeDashboard() {
 
               <div className="grid w-full max-w-lg gap-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-3">
                 <StatGlass
+                  shape="tile-b"
                   icon={Clock}
                   label={t("dashboard.hoursInApp")}
                   value={data.hoursOnline}
                   hint={t("dashboard.hoursInAppHint")}
                 />
                 <StatGlass
+                  shape="tile-c"
                   icon={Timer}
                   label={t("dashboard.timeSaved")}
                   value={`${data.timeSavedHours} ${t("dashboard.timeSavedHrs")}`}
@@ -410,6 +430,7 @@ export function HomeDashboard() {
                   }
                 />
                 <StatGlass
+                  shape="tile-d"
                   icon={CalendarDays}
                   label={t("dashboard.journey")}
                   value={data.tenureLabel}
@@ -419,7 +440,7 @@ export function HomeDashboard() {
                       : t("dashboard.gladHere")
                   }
                 />
-                <GlassPanel className="p-4 sm:col-span-2 sm:p-5">
+                <GlassPanel shape="capsule" className="p-4 sm:col-span-2 sm:p-5">
                   <div className="flex items-center gap-2.5 text-slate-200">
                     <BarChart3 className="h-5 w-5 text-teal-300" strokeWidth={2} aria-hidden />
                     <span className="text-xs font-bold uppercase tracking-[0.14em]">
@@ -461,7 +482,7 @@ export function HomeDashboard() {
                     : "pointer-events-none translate-x-[min(42vw,13rem)] opacity-0",
                 )}
               >
-                <GlassPanel className="min-h-0 p-4">
+                <GlassPanel shape="tile-a" className="min-h-0 p-4">
                   <div className="mb-1 flex flex-col gap-0.5 text-slate-200">
                     <div className="flex items-center gap-2.5">
                       <Globe className="h-5 w-5 shrink-0 text-rose-300" strokeWidth={2} aria-hidden />
@@ -483,7 +504,7 @@ export function HomeDashboard() {
                       {data.topSites.map((s, i) => (
                         <li
                           key={s.host}
-                          className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5"
+                          className="flex min-w-0 items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-3 py-2"
                         >
                           <span className="w-4 shrink-0 text-center text-xs font-bold text-rose-300">
                             {i + 1}
@@ -502,7 +523,7 @@ export function HomeDashboard() {
                   )}
                 </GlassPanel>
 
-                <GlassPanel className="min-h-0 shrink-0 p-4">
+                <GlassPanel shape="squircle-lg" className="min-h-0 shrink-0 p-4">
                   <div className="flex items-center gap-2.5 text-slate-200">
                     <Clock className="h-5 w-5 shrink-0 text-rose-300" strokeWidth={2} aria-hidden />
                     <span className="text-sm font-bold uppercase tracking-[0.12em]">
@@ -515,7 +536,7 @@ export function HomeDashboard() {
                   <FlowSparkline subtitle={t("dashboard.flowSubtitleMorning")} />
                 </GlassPanel>
 
-                <GlassPanel className="min-h-0 shrink-0 p-4">
+                <GlassPanel shape="tile-c" className="min-h-0 shrink-0 p-4">
                   <div className="flex items-center gap-2.5 text-slate-200">
                     <CalendarDays className="h-5 w-5 shrink-0 text-rose-300" strokeWidth={2} aria-hidden />
                     <span className="text-sm font-bold uppercase tracking-[0.12em]">{t("dashboard.journey")}</span>
@@ -552,8 +573,8 @@ export function HomeDashboard() {
                     : "pointer-events-none -translate-x-[min(42vw,13rem)] opacity-0",
                 )}
               >
-                <RoutineTabsCard className="min-h-0 shrink-0" />
-                <GlassPanel className="min-h-0 shrink-0 p-4">
+                <RoutineTabsCard className="min-h-0 shrink-0" panelShape="tile-b" />
+                <GlassPanel shape="tile-d" className="min-h-0 shrink-0 p-4">
                   <div className="flex items-center gap-2.5 text-slate-200">
                     <Timer className="h-5 w-5 shrink-0 text-rose-300" strokeWidth={2} aria-hidden />
                     <span className="text-sm font-bold uppercase tracking-[0.12em]">
@@ -576,7 +597,7 @@ export function HomeDashboard() {
                   </p>
                 </GlassPanel>
 
-                <GlassPanel className="flex min-h-0 flex-1 flex-col overflow-visible p-4">
+                <GlassPanel shape="capsule" className="flex min-h-0 flex-1 flex-col overflow-visible p-4">
                   <div className="mb-2 flex shrink-0 items-center gap-2.5 text-slate-200">
                     <Sparkles className="h-5 w-5 shrink-0 text-teal-300" strokeWidth={2} aria-hidden />
                     <span className="text-sm font-bold uppercase tracking-[0.12em]">{t("dashboard.yourStyle")}</span>
